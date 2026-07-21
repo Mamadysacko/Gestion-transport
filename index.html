@@ -804,21 +804,41 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 }
 
 /* ============================================================
-   RESPONSIVE
+   RESPONSIVE & TOUCH TARGETS
    ============================================================ */
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+table th, table td {
+  padding: 10px 12px;
+}
+.btn-sm {
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+}
 @media(max-width:900px){
   .sidebar{transform:translateX(-100%)}
   .sidebar.open{transform:translateX(0)}
-  .main{margin-left:0}
+  .main{margin-left:0; padding:16px; padding-top:70px}
   .sidebar-toggle{display:flex}
-  .grid-2,.grid-3{grid-template-columns:1fr}
+  .grid-2,.grid-3,.grid-auto{grid-template-columns:1fr}
   .form-row,.form-row-3{grid-template-columns:1fr}
-  .kpi-grid{grid-template-columns:1fr 1fr}
-  .main{padding:16px;padding-top:60px}
+  .kpi-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
 }
-@media(max-width:480px){
+@media(max-width:600px){
+  .page-header{flex-direction:column; align-items:stretch; gap:16px}
+  .page-actions{width:100%; justify-content:stretch}
+  .page-actions .btn, .page-actions .form-control{flex:1; width:100%}
+  .modal{padding:20px; max-height:95vh}
+}
+@media(max-width:400px){
   .kpi-grid{grid-template-columns:1fr}
-  .tabs{overflow-x:auto}
+  .tabs{overflow-x:auto; flex-wrap:nowrap}
+  .tab{padding:8px 12px; font-size:0.78rem}
 }
 /* Color themes for ticket types */
 .tt-A{background:rgba(245,158,11,0.15);color:#f59e0b}
@@ -827,9 +847,88 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 .tt-D{background:rgba(139,92,246,0.15);color:#8b5cf6}
 .tt-E{background:rgba(239,68,68,0.15);color:#ef4444}
 .tt-F{background:rgba(6,182,212,0.15);color:#06b6d4}
+
+/* ============================================================
+   AUTHENTICATION & LOGIN OVERLAY
+   ============================================================ */
+.login-overlay {
+  position:fixed; inset:0;
+  background:var(--bg-deep);
+  z-index:99999;
+  display:flex; align-items:center; justify-content:center;
+  padding:20px;
+  transition: opacity 0.4s ease;
+}
+.login-overlay::before {
+  content:'';
+  position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 30%, rgba(59,130,246,0.15) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 50% 80%, rgba(245,158,11,0.1) 0%, transparent 70%);
+  pointer-events:none;
+  z-index:0;
+}
+.login-box {
+  background:rgba(13, 22, 41, 0.85);
+  backdrop-filter:blur(20px);
+  border:1px solid var(--border-accent);
+  border-radius:var(--radius);
+  padding:36px;
+  width:100%;
+  max-width:420px;
+  box-shadow:0 20px 50px rgba(0,0,0,0.6);
+  z-index:1;
+  animation:loginSlideIn 0.5s cubic-bezier(.4,0,.2,1);
+}
+@keyframes loginSlideIn {
+  from {opacity:0; transform:translateY(-20px)}
+  to {opacity:1; transform:translateY(0)}
+}
+.login-header {
+  text-align:center;
+  margin-bottom:24px;
+}
+.login-header h2 {
+  font-size:1.8rem;
+  font-weight:800;
+  background:linear-gradient(135deg,var(--gold),var(--blue-light));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+  margin-bottom:6px;
+}
+.login-header p {
+  color:var(--text-muted);
+  font-size:0.88rem;
+}
+.login-overlay.hidden {
+  display:none !important;
+}
 </style>
 </head>
 <body>
+<!-- LOGIN SCREEN -->
+<div id="login-screen" class="login-overlay">
+  <div class="login-box">
+    <div class="login-header">
+      <h2>🚌 TransportGest</h2>
+      <p>Connexion à l'application de gestion</p>
+    </div>
+    <div id="login-error" class="alert alert-error" style="display:none; margin-bottom: 16px;"></div>
+    <form id="login-form" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label class="form-label" for="login-username">Nom d'utilisateur</label>
+        <input type="text" id="login-username" class="form-control" placeholder="Entrez votre nom d'utilisateur" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="login-password">Mot de passe</label>
+        <input type="password" id="login-password" class="form-control" placeholder="Entrez votre mot de passe" required>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top: 12px;">🚀 Connexion</button>
+    </form>
+  </div>
+</div>
+
 <div id="app">
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
@@ -867,16 +966,24 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       <div class="nav-item" data-section="configuration" onclick="navigate('configuration')">
         <span class="nav-icon">⚙️</span> Configuration
       </div>
+      <div class="nav-item" data-section="users" id="nav-item-users" onclick="navigate('users')" style="display:none">
+        <span class="nav-icon">👤</span> Utilisateurs
+      </div>
       <div class="nav-item" data-section="sauvegarde" onclick="navigate('sauvegarde')">
         <span class="nav-icon">💾</span> Sauvegarde
       </div>
+      <div class="nav-item" onclick="openCloudSetup()">
+        <span class="nav-icon">🔌</span> Synchronisation
+      </div>
     </nav>
     <div class="sidebar-footer">
-      <div id="sync-status" onclick="openCloudSetup()" title="Cliquez pour configurer la synchronisation cloud">
+      <div id="sync-status" onclick="openCloudSetup()" title="Cliquez pour configurer la synchronisation cloud" style="margin-bottom:8px">
         <div id="sync-dot" class="local"></div>
         <div id="sync-label">Mode local</div>
       </div>
-      <div id="current-date-display"></div>
+      <div id="current-date-display" style="margin-bottom:8px"></div>
+      <div id="user-info-footer" style="margin-bottom:8px; font-weight:600; color:var(--text); font-size:0.83rem"></div>
+      <button class="btn btn-secondary btn-sm" onclick="logout()" style="width:100%; justify-content:center">🔓 Déconnexion</button>
     </div>
   </aside>
 
@@ -1173,6 +1280,23 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       </div>
     </section>
 
+    <!-- ======================== UTILISATEURS ======================== -->
+    <section class="section" id="section-users">
+      <div class="page-header">
+        <div class="page-title">
+          <h2>Gestion des Utilisateurs</h2>
+          <p>Administration des comptes d'accès (Réservé aux Administrateurs)</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-primary" onclick="openUserModal()">➕ Nouvel utilisateur</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">👤</span> Liste des utilisateurs</div>
+        <div id="users-list"></div>
+      </div>
+    </section>
+
     <!-- ======================== SAUVEGARDE ======================== -->
     <section class="section" id="section-sauvegarde">
       <div class="page-header">
@@ -1211,6 +1335,54 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 
 <!-- ======================== MODALS ======================== -->
 
+<!-- Modal : Nouvel Utilisateur -->
+<div class="modal-overlay" id="modal-user">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-user-title">👤 Nouvel Utilisateur</h3>
+      <button class="modal-close" onclick="closeModal('modal-user')">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="user-username">Nom d'utilisateur</label>
+      <input type="text" id="user-username" class="form-control" placeholder="Entrez le nom d'utilisateur" required>
+    </div>
+    <div class="form-group" id="user-password-group">
+      <label class="form-label" for="user-password">Mot de passe</label>
+      <input type="password" id="user-password" class="form-control" placeholder="Entrez le mot de passe" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="user-role">Rôle</label>
+      <select id="user-role" class="form-control">
+        <option value="user">Utilisateur Simple</option>
+        <option value="admin">Administrateur</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-user')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveUser()">✅ Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal : Modifier Mot de Passe -->
+<div class="modal-overlay" id="modal-change-password">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>🔑 Modifier le mot de passe</h3>
+      <button class="modal-close" onclick="closeModal('modal-change-password')">✕</button>
+    </div>
+    <input type="hidden" id="change-pass-user-id">
+    <div class="form-group">
+      <label class="form-label" for="change-pass-val">Nouveau mot de passe</label>
+      <input type="password" id="change-pass-val" class="form-control" placeholder="Saisir le nouveau mot de passe" required>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-change-password')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveNewPassword()">✅ Modifier</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal : Nouvelle Distribution -->
 <div class="modal-overlay" id="modal-distribution">
   <div class="modal modal-lg">
@@ -1240,7 +1412,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
     </div>
     <div class="form-group">
       <label class="form-label">Voyage / Destination</label>
-      <input type="text" id="dist-trip" class="form-control" placeholder="Ex: Yaoundé → Douala">
+      <input type="text" id="dist-trip" class="form-control" placeholder="Ex: Kaloum → Km36">
     </div>
     <hr class="divider">
     <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px">Quantités de tickets remises au billetaire :</p>
@@ -1455,7 +1627,8 @@ const KEYS = {
   dist:    'tg_distributions',
   cloture: 'tg_clotures',
   depenses:'tg_depenses',
-  salaires:'tg_salaires'
+  salaires:'tg_salaires',
+  users:   'tg_users'
 };
 
 // Firebase collection names (match KEYS)
@@ -1464,7 +1637,8 @@ const FB_COLS = {
   dist:    'distributions',
   cloture: 'clotures',
   depenses:'depenses',
-  salaires:'salaires'
+  salaires:'salaires',
+  users:   'users'
 };
 
 // ----------------------------------------------------------------
@@ -1510,6 +1684,7 @@ const DB = {
   closures() { return DB._get(KEYS.cloture)  || [] },
   expenses() { return DB._get(KEYS.depenses) || [] },
   salaries() { return DB._get(KEYS.salaires) || [] },
+  users()    { return DB._get(KEYS.users)    || [] },
 
   // --- PUBLIC WRITE METHODS (write local + push to Firestore) ---
   saveCfg(c)     { DB._set(KEYS.config, c);  DB._pushDoc(FB_COLS.config,  'main', c) },
@@ -1517,6 +1692,7 @@ const DB = {
   saveClosures(c){ DB._set(KEYS.cloture, c); DB._pushList(FB_COLS.cloture, c) },
   saveExpenses(e){ DB._set(KEYS.depenses, e);DB._pushList(FB_COLS.depenses, e) },
   saveSalaries(s){ DB._set(KEYS.salaires, s);DB._pushList(FB_COLS.salaires, s) },
+  saveUsers(u)   { DB._set(KEYS.users, u);   DB._pushList(FB_COLS.users,  u) },
 
   // --- FIRESTORE HELPERS ---
   // Push a single document (e.g. config) to Firestore
@@ -1663,7 +1839,8 @@ async function loadAllFromFirestore(){
       [FB_COLS.dist,     KEYS.dist],
       [FB_COLS.cloture,  KEYS.cloture],
       [FB_COLS.depenses, KEYS.depenses],
-      [FB_COLS.salaires, KEYS.salaires]
+      [FB_COLS.salaires, KEYS.salaires],
+      [FB_COLS.users,    KEYS.users]
     ];
     for(const [col, key] of cols){
       const snap = await getDoc(doc(_firestore, col, 'list'));
@@ -1695,6 +1872,7 @@ function setupRealtimeListeners(){
   watch(FB_COLS.cloture, KEYS.cloture,  () => { if(currentSection==='cloture') renderSection('cloture'); refreshDashboard(); });
   watch(FB_COLS.depenses,KEYS.depenses, () => { if(currentSection==='depenses') renderSection('depenses'); refreshDashboard(); });
   watch(FB_COLS.salaires,KEYS.salaires, () => { if(currentSection==='salaires') renderSection('salaires'); refreshDashboard(); });
+  watch(FB_COLS.users,   KEYS.users,    () => { if(currentSection==='users') renderSection('users'); });
 }
 
 // ----------------------------------------------------------------
@@ -1742,12 +1920,20 @@ let _clotureDistId = null;
 // ----------------------------------------------------------------
 let currentSection = 'dashboard';
 let charts = {};
+let _currentUser = null;
 
 function navigate(sec){
+  if(sec === 'users') {
+    if(!_currentUser || _currentUser.role !== 'admin') {
+      toast('Accès refusé. Réservé aux administrateurs.','error');
+      return;
+    }
+  }
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('section-'+sec).classList.add('active');
-  document.querySelector(`[data-section="${sec}"]`).classList.add('active');
+  const navItem = document.querySelector(`[data-section="${sec}"]`);
+  if(navItem) navItem.classList.add('active');
   currentSection = sec;
   // close sidebar on mobile
   if(window.innerWidth<=900) document.getElementById('sidebar').classList.remove('open');
@@ -1764,6 +1950,7 @@ function renderSection(sec){
     case 'rapports':      initRapports(); break;
     case 'statistiques':  renderStats(); break;
     case 'configuration': renderConfig(); break;
+    case 'users':         renderUsers(); break;
     case 'sauvegarde':    renderSauvegarde(); break;
   }
 }
@@ -2991,7 +3178,8 @@ function exportData(){
     distributions:DB.dists(),
     closures:DB.closures(),
     expenses:DB.expenses(),
-    salaries:DB.salaries()
+    salaries:DB.salaries(),
+    users:DB.users()
   };
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
@@ -3008,7 +3196,7 @@ function importData(){
   if(!file){ toast('Veuillez sélectionner un fichier JSON','error'); return; }
   if(!confirm('⚠️ ATTENTION : Ceci remplacera TOUTES les données actuelles. Continuer ?')) return;
   const reader=new FileReader();
-  reader.onload=e=>{
+  reader.onload=async e=>{
     try{
       const data=JSON.parse(e.target.result);
       if(data.config) DB.saveCfg(data.config);
@@ -3016,6 +3204,11 @@ function importData(){
       if(data.closures) DB.saveClosures(data.closures);
       if(data.expenses) DB.saveExpenses(data.expenses);
       if(data.salaries) DB.saveSalaries(data.salaries);
+      if(data.users) {
+        DB.saveUsers(data.users);
+      } else {
+        await seedDefaultUsers();
+      }
       toast('Données restaurées avec succès ✅','success');
       renderSauvegarde();
     }catch(err){ toast('Fichier invalide — impossible d\'importer','error'); }
@@ -3037,12 +3230,17 @@ function confirmReset(){
       setDoc(doc(_firestore,FB_COLS.cloture,'list'), {data:empty,updatedAt:ts});
       setDoc(doc(_firestore,FB_COLS.depenses,'list'),{data:empty,updatedAt:ts});
       setDoc(doc(_firestore,FB_COLS.salaires,'list'),{data:empty,updatedAt:ts});
+      setDoc(doc(_firestore,FB_COLS.users,'list'),   {data:empty,updatedAt:ts});
       setDoc(doc(_firestore,FB_COLS.config,'main'),  {data:JSON.stringify(DEFAULT_CONFIG),updatedAt:ts});
     }
   }
-  toast('Application réinitialisée','warn');
-  renderSauvegarde();
-  renderSection(currentSection);
+  // Re-seed default admin credentials
+  seedDefaultUsers().then(() => {
+    toast('Application réinitialisée et compte admin réinitialisé','warn');
+    logout();
+    renderSauvegarde();
+    renderSection(currentSection);
+  });
 }
 
 // ----------------------------------------------------------------
@@ -3095,6 +3293,180 @@ function getLast12Months(){
 }
 
 // ----------------------------------------------------------------
+// AUTHENTICATION & USER MANAGEMENT
+// ----------------------------------------------------------------
+async function hashPassword(password) {
+  const msgUint8 = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+}
+
+async function seedDefaultUsers() {
+  const users = DB.users();
+  if (users.length === 0) {
+    const adminHash = await hashPassword('admin123');
+    users.push({
+      id: 'U' + Date.now(),
+      username: 'admin',
+      passwordHash: adminHash,
+      role: 'admin',
+      createdAt: new Date().toISOString()
+    });
+    DB.saveUsers(users);
+  }
+}
+
+async function handleLogin(e) {
+  if (e) e.preventDefault();
+  const userField = document.getElementById('login-username');
+  const passField = document.getElementById('login-password');
+  const errorEl = document.getElementById('login-error');
+  if (!userField || !passField) return;
+
+  const username = userField.value.trim().toLowerCase();
+  const password = passField.value;
+
+  const hash = await hashPassword(password);
+  const users = DB.users();
+  const matched = users.find(u => u.username === username && u.passwordHash === hash);
+
+  if (matched) {
+    _currentUser = matched;
+    sessionStorage.setItem('tg_current_user', JSON.stringify(matched));
+    errorEl.style.display = 'none';
+    document.getElementById('login-screen').classList.add('hidden');
+    
+    // UI visibility based on role
+    const usersNavItem = document.getElementById('nav-item-users');
+    if (usersNavItem) usersNavItem.style.display = _currentUser.role === 'admin' ? 'flex' : 'none';
+    
+    const userDisplay = document.getElementById('user-info-footer');
+    if (userDisplay) userDisplay.textContent = `👤 ${_currentUser.username} (${_currentUser.role === 'admin' ? 'Admin' : 'Utilisateur'})`;
+
+    toast(`Bienvenue, ${_currentUser.username} !`, 'success');
+    refreshDashboard();
+  } else {
+    errorEl.textContent = 'Identifiants invalides ou utilisateur inconnu.';
+    errorEl.style.display = 'block';
+  }
+}
+
+function logout() {
+  _currentUser = null;
+  sessionStorage.removeItem('tg_current_user');
+  document.getElementById('login-username').value = '';
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-screen').classList.remove('hidden');
+  toast('Déconnexion effectuée.', 'info');
+}
+
+function renderUsers() {
+  const users = DB.users();
+  const el = document.getElementById('users-list');
+  if (users.length === 0) {
+    el.innerHTML = '<div class="empty-state"><span class="icon">👤</span><p>Aucun utilisateur.</p></div>';
+    return;
+  }
+  el.innerHTML = `<div class="table-wrapper"><table>
+    <thead><tr><th>Nom d'utilisateur</th><th>Rôle</th><th>Créé le</th><th>Actions</th></tr></thead>
+    <tbody>
+      ${users.map(u => `
+        <tr>
+          <td><strong>${u.username}</strong></td>
+          <td><span class="badge ${u.role === 'admin' ? 'badge-gold' : 'badge-blue'}">${u.role === 'admin' ? 'Administrateur' : 'Utilisateur'}</span></td>
+          <td>${new Date(u.createdAt).toLocaleDateString('fr-FR')} le ${new Date(u.createdAt).toLocaleTimeString('fr-FR')}</td>
+          <td>
+            <button class="btn btn-secondary btn-sm" onclick="openChangePasswordModal('${u.id}')">🔑 MDP</button>
+            ${u.username !== _currentUser?.username ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">🗑️</button>` : ''}
+          </td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+function openUserModal() {
+  document.getElementById('modal-user-title').textContent = '👤 Nouvel Utilisateur';
+  document.getElementById('user-username').value = '';
+  document.getElementById('user-password').value = '';
+  document.getElementById('user-role').value = 'user';
+  openModal('modal-user');
+}
+
+async function saveUser() {
+  const username = document.getElementById('user-username').value.trim().toLowerCase();
+  const password = document.getElementById('user-password').value;
+  const role = document.getElementById('user-role').value;
+  if (!username || !password) {
+    toast('Veuillez remplir tous les champs', 'error');
+    return;
+  }
+  const users = DB.users();
+  if (users.some(u => u.username === username)) {
+    toast('Cet utilisateur existe déjà', 'error');
+    return;
+  }
+  const hash = await hashPassword(password);
+  users.push({
+    id: 'U' + Date.now(),
+    username,
+    passwordHash: hash,
+    role,
+    createdAt: new Date().toISOString()
+  });
+  DB.saveUsers(users);
+  closeModal('modal-user');
+  toast('Utilisateur créé avec succès ✅', 'success');
+  renderUsers();
+}
+
+function openChangePasswordModal(userId) {
+  document.getElementById('change-pass-user-id').value = userId;
+  document.getElementById('change-pass-val').value = '';
+  openModal('modal-change-password');
+}
+
+async function saveNewPassword() {
+  const id = document.getElementById('change-pass-user-id').value;
+  const newPass = document.getElementById('change-pass-val').value;
+  if (!newPass) {
+    toast('Veuillez saisir un mot de passe', 'error');
+    return;
+  }
+  const users = DB.users();
+  const idx = users.findIndex(u => u.id === id);
+  if (idx >= 0) {
+    users[idx].passwordHash = await hashPassword(newPass);
+    DB.saveUsers(users);
+    closeModal('modal-change-password');
+    toast('Mot de passe mis à jour avec succès ✅', 'success');
+    
+    if (users[idx].username === _currentUser?.username) {
+      _currentUser = users[idx];
+      sessionStorage.setItem('tg_current_user', JSON.stringify(_currentUser));
+      const userDisplay = document.getElementById('user-info-footer');
+      if (userDisplay) userDisplay.textContent = `👤 ${_currentUser.username} (${_currentUser.role === 'admin' ? 'Admin' : 'Utilisateur'})`;
+    }
+    renderUsers();
+  }
+}
+
+function deleteUser(id) {
+  const users = DB.users();
+  const user = users.find(u => u.id === id);
+  if (user && user.username === _currentUser?.username) {
+    toast('Vous ne pouvez pas supprimer votre propre compte', 'error');
+    return;
+  }
+  if (!confirm(`Supprimer l'utilisateur ${user?.username} ?`)) return;
+  DB.saveUsers(users.filter(u => u.id !== id));
+  toast('Utilisateur supprimé', 'warn');
+  renderUsers();
+}
+
+// ----------------------------------------------------------------
 // INITIALIZATION
 // ----------------------------------------------------------------
 async function init(){
@@ -3103,6 +3475,9 @@ async function init(){
 
   // Ensure local config exists as fallback
   if(!DB._get(KEYS.config)) DB._set(KEYS.config, DEFAULT_CONFIG);
+
+  // Seed default admin account
+  await seedDefaultUsers();
 
   // Try to connect to Firebase if config is saved
   const savedFbCfg = localStorage.getItem('tg_firebase_config');
@@ -3114,6 +3489,19 @@ async function init(){
     }catch(e){ console.warn('Auto-connect Firebase failed:', e); setSyncStatus('error'); }
   } else {
     setSyncStatus('local');
+  }
+
+  // Session check
+  const sessionUser = sessionStorage.getItem('tg_current_user');
+  if (sessionUser) {
+    _currentUser = JSON.parse(sessionUser);
+    document.getElementById('login-screen').classList.add('hidden');
+    const usersNavItem = document.getElementById('nav-item-users');
+    if (usersNavItem) usersNavItem.style.display = _currentUser.role === 'admin' ? 'flex' : 'none';
+    const userDisplay = document.getElementById('user-info-footer');
+    if (userDisplay) userDisplay.textContent = `👤 ${_currentUser.username} (${_currentUser.role === 'admin' ? 'Admin' : 'Utilisateur'})`;
+  } else {
+    document.getElementById('login-screen').classList.remove('hidden');
   }
 
   // Hide loading overlay
