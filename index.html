@@ -1,0 +1,3143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TransportGest — Gestion des Recettes</title>
+<meta name="description" content="Application de gestion des recettes, dépenses et salaires d'une entreprise de transport.">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+  import { getFirestore, doc, collection, getDocs, getDoc, setDoc, onSnapshot, enableIndexedDbPersistence } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+  window._firebaseModules = { initializeApp, getFirestore, doc, collection, getDocs, getDoc, setDoc, onSnapshot, enableIndexedDbPersistence };
+  window.dispatchEvent(new Event('firebase-modules-ready'));
+</script>
+<style>
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-deep:#070d1a;
+  --bg-card:rgba(255,255,255,0.04);
+  --bg-card-hover:rgba(255,255,255,0.07);
+  --border:rgba(255,255,255,0.09);
+  --border-accent:rgba(245,158,11,0.4);
+  --gold:#f59e0b;
+  --gold-light:#fbbf24;
+  --blue:#3b82f6;
+  --blue-light:#60a5fa;
+  --green:#10b981;
+  --red:#ef4444;
+  --purple:#8b5cf6;
+  --cyan:#06b6d4;
+  --text:#f0f4ff;
+  --text-muted:#8b9cc8;
+  --text-dim:#4a5578;
+  --sidebar-w:260px;
+  --radius:14px;
+  --radius-sm:8px;
+  --shadow:0 8px 32px rgba(0,0,0,0.5);
+  --transition:0.3s cubic-bezier(.4,0,.2,1);
+}
+html{font-size:15px;scroll-behavior:smooth}
+body{
+  font-family:'Inter',sans-serif;
+  background:var(--bg-deep);
+  color:var(--text);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+/* Animated background */
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background:
+    radial-gradient(ellipse 60% 50% at 10% 20%, rgba(59,130,246,0.08) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 90% 80%, rgba(245,158,11,0.06) 0%, transparent 70%);
+  pointer-events:none;
+  z-index:0;
+}
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:3px}
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+#app{display:flex;min-height:100vh;position:relative;z-index:1}
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+.sidebar{
+  width:var(--sidebar-w);
+  min-height:100vh;
+  background:rgba(10,15,30,0.9);
+  backdrop-filter:blur(20px);
+  border-right:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  position:fixed;
+  top:0;left:0;bottom:0;
+  z-index:100;
+  transition:transform var(--transition);
+}
+.sidebar-logo{
+  padding:24px 20px 20px;
+  border-bottom:1px solid var(--border);
+}
+.sidebar-logo h1{
+  font-size:1.1rem;
+  font-weight:800;
+  background:linear-gradient(135deg,var(--gold),var(--blue-light));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+  line-height:1.2;
+}
+.sidebar-logo p{
+  font-size:0.72rem;
+  color:var(--text-muted);
+  margin-top:3px;
+}
+.sidebar-nav{
+  flex:1;
+  padding:12px 10px;
+  overflow-y:auto;
+}
+.nav-section-label{
+  font-size:0.65rem;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.12em;
+  color:var(--text-dim);
+  padding:10px 10px 4px;
+}
+.nav-item{
+  display:flex;
+  align-items:center;
+  gap:11px;
+  padding:10px 12px;
+  border-radius:var(--radius-sm);
+  cursor:pointer;
+  color:var(--text-muted);
+  font-size:0.88rem;
+  font-weight:500;
+  transition:all var(--transition);
+  margin-bottom:2px;
+  position:relative;
+  border:1px solid transparent;
+}
+.nav-item:hover{
+  background:var(--bg-card-hover);
+  color:var(--text);
+}
+.nav-item.active{
+  background:linear-gradient(135deg,rgba(245,158,11,0.15),rgba(59,130,246,0.1));
+  border-color:var(--border-accent);
+  color:var(--gold);
+}
+.nav-item.active .nav-icon{filter:none}
+.nav-icon{font-size:1.1rem;width:22px;text-align:center;flex-shrink:0}
+.nav-badge{
+  margin-left:auto;
+  background:var(--red);
+  color:#fff;
+  font-size:0.65rem;
+  font-weight:700;
+  border-radius:20px;
+  padding:1px 6px;
+  min-width:18px;
+  text-align:center;
+}
+.sidebar-footer{
+  padding:16px;
+  border-top:1px solid var(--border);
+  font-size:0.75rem;
+  color:var(--text-dim);
+  text-align:center;
+}
+.sidebar-toggle{
+  display:none;
+  position:fixed;
+  top:14px;left:14px;
+  z-index:200;
+  background:rgba(10,15,30,0.9);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  width:40px;height:40px;
+  align-items:center;justify-content:center;
+  cursor:pointer;
+  font-size:1.3rem;
+  backdrop-filter:blur(10px);
+  color:var(--text);
+}
+
+/* ============================================================
+   MAIN CONTENT
+   ============================================================ */
+.main{
+  flex:1;
+  margin-left:var(--sidebar-w);
+  padding:28px;
+  min-height:100vh;
+}
+.section{display:none}
+.section.active{display:block;animation:fadeIn 0.3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ============================================================
+   PAGE HEADER
+   ============================================================ */
+.page-header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  margin-bottom:28px;
+  flex-wrap:wrap;
+  gap:12px;
+}
+.page-title h2{
+  font-size:1.55rem;
+  font-weight:800;
+  color:var(--text);
+}
+.page-title p{
+  color:var(--text-muted);
+  font-size:0.85rem;
+  margin-top:3px;
+}
+.page-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  padding:10px 18px;
+  border-radius:var(--radius-sm);
+  font-size:0.85rem;
+  font-weight:600;
+  cursor:pointer;
+  border:none;
+  transition:all var(--transition);
+  white-space:nowrap;
+  font-family:inherit;
+}
+.btn-primary{
+  background:linear-gradient(135deg,var(--gold),#d97706);
+  color:#0a0f1e;
+}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(245,158,11,0.4)}
+.btn-secondary{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  color:var(--text);
+}
+.btn-secondary:hover{background:var(--bg-card-hover);border-color:var(--border-accent)}
+.btn-danger{background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:var(--red)}
+.btn-danger:hover{background:rgba(239,68,68,0.25)}
+.btn-success{background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:var(--green)}
+.btn-success:hover{background:rgba(16,185,129,0.25)}
+.btn-sm{padding:6px 12px;font-size:0.78rem}
+.btn-icon{padding:8px;width:36px;height:36px;justify-content:center}
+
+/* ============================================================
+   CARDS
+   ============================================================ */
+.card{
+  background:var(--bg-card);
+  backdrop-filter:blur(10px);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:22px;
+  transition:all var(--transition);
+}
+.card:hover{border-color:rgba(255,255,255,0.13)}
+.card-title{
+  font-size:0.78rem;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  color:var(--text-muted);
+  margin-bottom:14px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.card-title .icon{font-size:1rem}
+
+/* KPI Cards */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.kpi-card{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:20px;
+  position:relative;
+  overflow:hidden;
+  transition:all var(--transition);
+}
+.kpi-card::before{
+  content:'';
+  position:absolute;
+  top:0;left:0;right:0;
+  height:3px;
+  background:var(--accent,var(--gold));
+}
+.kpi-card:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.kpi-label{font-size:0.75rem;color:var(--text-muted);font-weight:500;text-transform:uppercase;letter-spacing:0.06em}
+.kpi-value{
+  font-size:1.7rem;
+  font-weight:800;
+  color:var(--text);
+  margin:6px 0 4px;
+  line-height:1.1;
+}
+.kpi-sub{font-size:0.75rem;color:var(--text-muted)}
+.kpi-icon{
+  position:absolute;
+  right:16px;top:50%;
+  transform:translateY(-50%);
+  font-size:2.2rem;
+  opacity:0.12;
+}
+
+/* ============================================================
+   GRID LAYOUTS
+   ============================================================ */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.grid-auto{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+
+/* ============================================================
+   FORMS
+   ============================================================ */
+.form-group{margin-bottom:16px}
+.form-label{
+  display:block;
+  font-size:0.8rem;
+  font-weight:600;
+  color:var(--text-muted);
+  margin-bottom:6px;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+}
+.form-control{
+  width:100%;
+  background:rgba(255,255,255,0.05);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:10px 14px;
+  color:var(--text);
+  font-size:0.88rem;
+  font-family:inherit;
+  transition:all var(--transition);
+  outline:none;
+}
+.form-control:focus{
+  border-color:var(--gold);
+  background:rgba(245,158,11,0.05);
+  box-shadow:0 0 0 3px rgba(245,158,11,0.1);
+}
+.form-control::placeholder{color:var(--text-dim)}
+select.form-control option{background:#0d1629;color:var(--text)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.form-hint{font-size:0.73rem;color:var(--text-dim);margin-top:4px}
+
+/* ============================================================
+   TABLES
+   ============================================================ */
+.table-wrapper{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse}
+thead{background:rgba(255,255,255,0.04)}
+th{
+  padding:12px 16px;
+  text-align:left;
+  font-size:0.73rem;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  color:var(--text-muted);
+  border-bottom:1px solid var(--border);
+  white-space:nowrap;
+}
+td{
+  padding:12px 16px;
+  font-size:0.85rem;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  vertical-align:middle;
+}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,0.02)}
+.tfoot-row td{
+  font-weight:700;
+  background:rgba(245,158,11,0.06);
+  border-top:1px solid var(--border-accent);
+  color:var(--gold);
+}
+
+/* ============================================================
+   BADGES
+   ============================================================ */
+.badge{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:3px 9px;
+  border-radius:20px;
+  font-size:0.72rem;
+  font-weight:600;
+}
+.badge-gold{background:rgba(245,158,11,0.15);color:var(--gold)}
+.badge-green{background:rgba(16,185,129,0.15);color:var(--green)}
+.badge-red{background:rgba(239,68,68,0.15);color:var(--red)}
+.badge-blue{background:rgba(59,130,246,0.15);color:var(--blue-light)}
+.badge-purple{background:rgba(139,92,246,0.15);color:var(--purple)}
+.badge-gray{background:rgba(255,255,255,0.08);color:var(--text-muted)}
+
+/* ============================================================
+   ALERTS
+   ============================================================ */
+.alert{
+  padding:14px 18px;
+  border-radius:var(--radius-sm);
+  font-size:0.85rem;
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  margin-bottom:16px;
+}
+.alert-warn{background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);color:#fbbf24}
+.alert-error{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#fca5a5}
+.alert-success{background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7}
+.alert-info{background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);color:var(--blue-light)}
+
+/* ============================================================
+   MODAL
+   ============================================================ */
+.modal-overlay{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,0.7);
+  backdrop-filter:blur(4px);
+  z-index:999;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+}
+.modal-overlay.open{display:flex}
+.modal{
+  background:#0d1629;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:28px;
+  width:100%;
+  max-width:600px;
+  max-height:90vh;
+  overflow-y:auto;
+  animation:fadeIn 0.2s ease;
+  position:relative;
+}
+.modal-lg{max-width:800px}
+.modal-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:22px;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--border);
+}
+.modal-header h3{font-size:1.1rem;font-weight:700;color:var(--text)}
+.modal-close{
+  background:none;border:none;
+  color:var(--text-muted);
+  cursor:pointer;font-size:1.4rem;
+  line-height:1;transition:color 0.2s;
+  padding:4px;
+}
+.modal-close:hover{color:var(--text)}
+.modal-footer{
+  display:flex;
+  gap:10px;
+  justify-content:flex-end;
+  margin-top:22px;
+  padding-top:16px;
+  border-top:1px solid var(--border);
+}
+
+/* ============================================================
+   TABS
+   ============================================================ */
+.tabs{
+  display:flex;
+  gap:4px;
+  background:rgba(255,255,255,0.04);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:4px;
+  margin-bottom:22px;
+  flex-wrap:wrap;
+}
+.tab{
+  padding:8px 16px;
+  border-radius:5px;
+  cursor:pointer;
+  font-size:0.83rem;
+  font-weight:500;
+  color:var(--text-muted);
+  transition:all var(--transition);
+  white-space:nowrap;
+}
+.tab.active{
+  background:linear-gradient(135deg,rgba(245,158,11,0.2),rgba(59,130,246,0.15));
+  color:var(--gold);
+  font-weight:600;
+}
+.tab:hover:not(.active){color:var(--text)}
+.tab-panel{display:none}
+.tab-panel.active{display:block;animation:fadeIn 0.25s ease}
+
+/* ============================================================
+   TICKET GRID (Distribution / Clôture)
+   ============================================================ */
+.ticket-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:12px;
+  margin:16px 0;
+}
+.ticket-row{
+  background:rgba(255,255,255,0.03);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:14px 16px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  transition:all var(--transition);
+}
+.ticket-row:hover{border-color:var(--border-accent)}
+.ticket-type-badge{
+  width:40px;height:40px;
+  border-radius:var(--radius-sm);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:1rem;
+  flex-shrink:0;
+}
+.ticket-info{flex:1}
+.ticket-info .name{font-size:0.85rem;font-weight:600;color:var(--text)}
+.ticket-info .price{font-size:0.75rem;color:var(--text-muted)}
+.ticket-input{
+  width:90px;
+  text-align:center;
+}
+
+/* ============================================================
+   PROGRESS BAR
+   ============================================================ */
+.progress-bar{
+  height:6px;
+  background:rgba(255,255,255,0.08);
+  border-radius:3px;
+  overflow:hidden;
+  margin-top:6px;
+}
+.progress-fill{
+  height:100%;
+  border-radius:3px;
+  transition:width 0.5s ease;
+}
+
+/* ============================================================
+   STAT CARDS (résultats clôture)
+   ============================================================ */
+.result-box{
+  background:rgba(255,255,255,0.03);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:16px;
+  text-align:center;
+}
+.result-box .r-label{font-size:0.73rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em}
+.result-box .r-value{font-size:1.4rem;font-weight:800;color:var(--text);margin:6px 0}
+
+/* ============================================================
+   CHART CONTAINERS
+   ============================================================ */
+.chart-container{
+  position:relative;
+  height:280px;
+}
+.chart-container-sm{
+  position:relative;
+  height:200px;
+}
+
+/* ============================================================
+   EMPLOYEE CARDS
+   ============================================================ */
+.employee-card{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:20px;
+  position:relative;
+  overflow:hidden;
+  transition:all var(--transition);
+}
+.employee-card:hover{border-color:var(--border-accent);transform:translateY(-2px)}
+.emp-avatar{
+  width:52px;height:52px;
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:1.3rem;
+  margin-bottom:12px;
+}
+.emp-name{font-size:1rem;font-weight:700;color:var(--text)}
+.emp-role{font-size:0.78rem;color:var(--text-muted);margin:2px 0 12px}
+.emp-salary-bar{margin-top:12px}
+.emp-meta{display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:4px}
+.emp-meta span:first-child{color:var(--text-muted)}
+.emp-meta span:last-child{color:var(--text);font-weight:600}
+
+/* ============================================================
+   ANOMALY INDICATOR
+   ============================================================ */
+.anomaly-flag{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(239,68,68,0.1);
+  border:1px solid rgba(239,68,68,0.3);
+  color:var(--red);
+  padding:4px 10px;
+  border-radius:20px;
+  font-size:0.75rem;
+  font-weight:600;
+  animation:pulse 2s infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+.ok-flag{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(16,185,129,0.1);
+  border:1px solid rgba(16,185,129,0.3);
+  color:var(--green);
+  padding:4px 10px;
+  border-radius:20px;
+  font-size:0.75rem;
+  font-weight:600;
+}
+
+/* ============================================================
+   EMPTY STATE
+   ============================================================ */
+.empty-state{
+  text-align:center;
+  padding:60px 20px;
+  color:var(--text-dim);
+}
+.empty-state .icon{font-size:3rem;margin-bottom:12px;display:block}
+.empty-state p{font-size:0.9rem}
+
+/* ============================================================
+   DIVIDER
+   ============================================================ */
+.divider{
+  border:none;
+  border-top:1px solid var(--border);
+  margin:20px 0;
+}
+
+/* ============================================================
+   TOAST NOTIFICATIONS
+   ============================================================ */
+#toast-container{
+  position:fixed;
+  bottom:24px;right:24px;
+  z-index:9999;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  pointer-events:none;
+}
+.toast{
+  background:#0d1629;
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:12px 18px;
+  font-size:0.85rem;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  animation:slideIn 0.3s ease;
+  pointer-events:all;
+  max-width:320px;
+  box-shadow:var(--shadow);
+}
+.toast-success{border-left:3px solid var(--green);color:var(--green)}
+.toast-error{border-left:3px solid var(--red);color:var(--red)}
+.toast-warn{border-left:3px solid var(--gold);color:var(--gold)}
+.toast-info{border-left:3px solid var(--blue);color:var(--blue-light)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes slideOut{from{transform:translateX(0);opacity:1}to{transform:translateX(110%);opacity:0}}
+
+/* ============================================================
+   CLOUD SYNC INDICATOR
+   ============================================================ */
+#sync-status{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 14px;
+  background:rgba(255,255,255,0.04);
+  border-radius:var(--radius-sm);
+  border:1px solid var(--border);
+  margin-bottom:8px;
+  font-size:0.78rem;
+  cursor:pointer;
+  transition:background var(--transition);
+}
+#sync-status:hover{background:rgba(255,255,255,0.07)}
+#sync-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--text-dim);
+  flex-shrink:0;
+  transition:background 0.3s;
+}
+#sync-dot.synced{background:var(--green);box-shadow:0 0 6px var(--green)}
+#sync-dot.syncing{background:var(--gold);animation:pulse 1s infinite}
+#sync-dot.error{background:var(--red);box-shadow:0 0 6px var(--red)}
+#sync-dot.local{background:var(--text-dim)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+/* ============================================================
+   CLOUD CONFIG MODAL
+   ============================================================ */
+#cloud-setup-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);
+  z-index:9999;display:flex;align-items:center;justify-content:center;
+  padding:20px;
+}
+#cloud-setup-overlay.hidden{display:none}
+.cloud-setup-box{
+  background:rgba(10,15,30,0.98);
+  border:1px solid var(--border-accent);
+  border-radius:var(--radius);
+  padding:32px;
+  max-width:520px;width:100%;
+  box-shadow:0 20px 60px rgba(0,0,0,0.8);
+}
+.cloud-setup-box h2{
+  font-size:1.3rem;font-weight:800;
+  background:linear-gradient(135deg,var(--gold),var(--blue-light));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  margin-bottom:8px;
+}
+.cloud-setup-box p{font-size:0.85rem;color:var(--text-muted);margin-bottom:20px;line-height:1.6}
+.cloud-setup-box .steps{margin-bottom:20px}
+.cloud-setup-box .step{
+  display:flex;gap:12px;align-items:flex-start;
+  padding:8px 0;border-bottom:1px solid var(--border);
+  font-size:0.82rem;color:var(--text-muted);
+}
+.cloud-setup-box .step:last-child{border-bottom:none}
+.step-num{
+  min-width:24px;height:24px;border-radius:50%;
+  background:var(--gold);color:#000;
+  font-size:0.75rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;margin-top:1px;
+}
+.cloud-setup-box textarea{
+  width:100%;min-height:120px;
+  background:rgba(255,255,255,0.05);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  color:var(--text);font-size:0.8rem;font-family:monospace;
+  padding:12px;resize:vertical;
+  outline:none;transition:border-color var(--transition);
+  margin-bottom:12px;
+}
+.cloud-setup-box textarea:focus{border-color:var(--gold)}
+.cloud-setup-actions{display:flex;gap:10px;flex-wrap:wrap}
+.cloud-skip-btn{
+  background:transparent;border:1px solid var(--border);
+  color:var(--text-muted);padding:10px 18px;
+  border-radius:var(--radius-sm);cursor:pointer;
+  font-size:0.85rem;transition:all var(--transition);
+}
+.cloud-skip-btn:hover{border-color:var(--text-muted);color:var(--text)}
+
+/* Loading overlay */
+#app-loading{
+  position:fixed;inset:0;background:var(--bg-deep);
+  z-index:9998;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:16px;
+}
+#app-loading.hidden{display:none}
+.loading-spinner{
+  width:40px;height:40px;border-radius:50%;
+  border:3px solid var(--border);
+  border-top-color:var(--gold);
+  animation:spin 0.8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+#app-loading p{color:var(--text-muted);font-size:0.9rem}
+
+/* ============================================================
+   REPORT PRINT
+   ============================================================ */
+@media print{
+  .sidebar,.sidebar-toggle,.page-actions,.btn,.tabs,.no-print{display:none!important}
+  .main{margin:0;padding:0}
+  body{background:#fff;color:#000}
+  .card,.kpi-card,.table-wrapper{border:1px solid #ccc;box-shadow:none}
+  .kpi-value,.card-title{color:#000}
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media(max-width:900px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0}
+  .sidebar-toggle{display:flex}
+  .grid-2,.grid-3{grid-template-columns:1fr}
+  .form-row,.form-row-3{grid-template-columns:1fr}
+  .kpi-grid{grid-template-columns:1fr 1fr}
+  .main{padding:16px;padding-top:60px}
+}
+@media(max-width:480px){
+  .kpi-grid{grid-template-columns:1fr}
+  .tabs{overflow-x:auto}
+}
+/* Color themes for ticket types */
+.tt-A{background:rgba(245,158,11,0.15);color:#f59e0b}
+.tt-B{background:rgba(59,130,246,0.15);color:#60a5fa}
+.tt-C{background:rgba(16,185,129,0.15);color:#10b981}
+.tt-D{background:rgba(139,92,246,0.15);color:#8b5cf6}
+.tt-E{background:rgba(239,68,68,0.15);color:#ef4444}
+.tt-F{background:rgba(6,182,212,0.15);color:#06b6d4}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <h1>🚌 TransportGest</h1>
+      <p>Gestion des Recettes</p>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Principal</div>
+      <div class="nav-item active" data-section="dashboard" onclick="navigate('dashboard')">
+        <span class="nav-icon">🏠</span> Tableau de bord
+      </div>
+      <div class="nav-section-label">Opérations</div>
+      <div class="nav-item" data-section="distribution" onclick="navigate('distribution')">
+        <span class="nav-icon">🎫</span> Distribution
+      </div>
+      <div class="nav-item" data-section="cloture" onclick="navigate('cloture')">
+        <span class="nav-icon">✅</span> Clôture
+        <span class="nav-badge" id="badge-cloture" style="display:none">!</span>
+      </div>
+      <div class="nav-item" data-section="depenses" onclick="navigate('depenses')">
+        <span class="nav-icon">💸</span> Dépenses
+      </div>
+      <div class="nav-item" data-section="salaires" onclick="navigate('salaires')">
+        <span class="nav-icon">👥</span> Salaires
+      </div>
+      <div class="nav-section-label">Analyse</div>
+      <div class="nav-item" data-section="rapports" onclick="navigate('rapports')">
+        <span class="nav-icon">📋</span> Rapports
+      </div>
+      <div class="nav-item" data-section="statistiques" onclick="navigate('statistiques')">
+        <span class="nav-icon">📊</span> Statistiques
+      </div>
+      <div class="nav-section-label">Système</div>
+      <div class="nav-item" data-section="configuration" onclick="navigate('configuration')">
+        <span class="nav-icon">⚙️</span> Configuration
+      </div>
+      <div class="nav-item" data-section="sauvegarde" onclick="navigate('sauvegarde')">
+        <span class="nav-icon">💾</span> Sauvegarde
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div id="sync-status" onclick="openCloudSetup()" title="Cliquez pour configurer la synchronisation cloud">
+        <div id="sync-dot" class="local"></div>
+        <div id="sync-label">Mode local</div>
+      </div>
+      <div id="current-date-display"></div>
+    </div>
+  </aside>
+
+  <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+
+  <!-- MAIN CONTENT -->
+  <main class="main">
+
+    <!-- ======================== DASHBOARD ======================== -->
+    <section class="section active" id="section-dashboard">
+      <div class="page-header">
+        <div class="page-title">
+          <h2>Tableau de bord</h2>
+          <p id="dash-date-label">Chargement…</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" onclick="refreshDashboard()">🔄 Actualiser</button>
+        </div>
+      </div>
+
+      <div class="tabs" id="dash-tabs">
+        <div class="tab active" data-tab="day" onclick="switchDashTab('day')">📅 Journalier</div>
+        <div class="tab" data-tab="week" onclick="switchDashTab('week')">📆 Hebdomadaire</div>
+        <div class="tab" data-tab="month" onclick="switchDashTab('month')">🗓️ Mensuel</div>
+        <div class="tab" data-tab="paie" onclick="switchDashTab('paie')">💰 Analyse Paie</div>
+      </div>
+
+      <!-- Daily tab -->
+      <div class="tab-panel active" id="tab-day">
+        <div class="kpi-grid" id="kpi-day"></div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title"><span class="icon">🎫</span> Ventes par type — Aujourd'hui</div>
+            <div id="day-tickets-table"></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="icon">💸</span> Dépenses du jour</div>
+            <div id="day-expenses-table"></div>
+          </div>
+        </div>
+        <div id="day-anomalies" style="margin-top:16px"></div>
+      </div>
+
+      <!-- Weekly tab -->
+      <div class="tab-panel" id="tab-week">
+        <div class="kpi-grid" id="kpi-week"></div>
+        <div class="card" style="margin-top:4px">
+          <div class="card-title"><span class="icon">📈</span> Évolution quotidienne de la semaine</div>
+          <div class="chart-container">
+            <canvas id="chart-week"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Monthly tab -->
+      <div class="tab-panel" id="tab-month">
+        <div class="kpi-grid" id="kpi-month"></div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title"><span class="icon">📊</span> Recettes vs Dépenses (mois)</div>
+            <div class="chart-container">
+              <canvas id="chart-month-bar"></canvas>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="icon">🍩</span> Répartition tickets vendus</div>
+            <div class="chart-container">
+              <canvas id="chart-month-pie"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paie tab -->
+      <div class="tab-panel" id="tab-paie">
+        <div id="paie-analysis-content"></div>
+      </div>
+    </section>
+
+    <!-- ======================== DISTRIBUTION ======================== -->
+    <section class="section" id="section-distribution">
+      <div class="page-header">
+        <div class="page-title">
+          <h2>Distribution de Tickets</h2>
+          <p>Remise des tickets au billetaire avant le départ</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-primary" onclick="openModal('modal-distribution')">➕ Nouvelle distribution</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">🗂️</span> Historique des distributions</div>
+        <div id="distribution-list"></div>
+      </div>
+    </section>
+
+    <!-- ======================== CLOTURE ======================== -->
+    <section class="section" id="section-cloture">
+      <div class="page-header">
+        <div class="page-title">
+          <h2>Clôture Journalière</h2>
+          <p>Enregistrement des tickets restants et de la recette encaissée</p>
+        </div>
+      </div>
+      <div id="cloture-list-section">
+        <div class="alert alert-info">ℹ️ Sélectionnez une distribution ouverte à clôturer.</div>
+        <div id="open-distributions"></div>
+      </div>
+      <div class="card" style="margin-top:20px">
+        <div class="card-title"><span class="icon">📋</span> Clôtures effectuées</div>
+        <div id="closed-list"></div>
+      </div>
+    </section>
+
+    <!-- ======================== DEPENSES ======================== -->
+    <section class="section" id="section-depenses">
+      <div class="page-header">
+        <div class="page-title">
+          <h2>Gestion des Dépenses</h2>
+          <p>Enregistrement de toutes les charges de l'entreprise</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-primary" onclick="openModal('modal-depense')">➕ Nouvelle dépense</button>
+        </div>
+      </div>
+      <div class="kpi-grid" id="kpi-depenses"></div>
+      <div class="card">
+        <div class="card-title"><span class="icon">💸</span> Historique des dépenses</div>
+        <div class="page-actions" style="margin-bottom:12px">
+          <input type="date" id="filter-dep-date" class="form-control" style="width:180px" onchange="renderDepenses()">
+          <select id="filter-dep-cat" class="form-control" style="width:180px" onchange="renderDepenses()">
+            <option value="">Toutes catégories</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" onclick="clearDepenseFilters()">Effacer</button>
+        </div>
+        <div id="depenses-list"></div>
+      </div>
+    </section>
+
+    <!-- ======================== SALAIRES ======================== -->
+    <section class="section" id="section-salaires">
+      <div class="page-header">
+        <div class="page-title">
+          <h2>Gestion des Salaires</h2>
+          <p>Suivi des paiements par employé</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-primary" onclick="openModal('modal-salaire')">💳 Payer un salaire</button>
+        </div>
+      </div>
+      <div id="employee-cards-grid" class="grid-auto" style="margin-bottom:24px"></div>
+      <div class="card">
+        <div class="card-title"><span class="icon">📜</span> Historique des paiements</div>
+        <div id="salaires-history"></div>
+      </div>
+    </section>
+
+    <!-- ======================== RAPPORTS ======================== -->
+    <section class="section" id="section-rapports">
+      <div class="page-header">
+        <div class="page-title">
+          <h2>Rapports</h2>
+          <p>Consultation détaillée des périodes</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary no-print" onclick="window.print()">🖨️ Imprimer</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <div class="tab active" data-tab="rj" onclick="switchRapportTab('rj')">📅 Journalier</div>
+        <div class="tab" data-tab="rs" onclick="switchRapportTab('rs')">📆 Hebdomadaire</div>
+        <div class="tab" data-tab="rm" onclick="switchRapportTab('rm')">🗓️ Mensuel</div>
+        <div class="tab" data-tab="ra" onclick="switchRapportTab('ra')">📅 Annuel</div>
+      </div>
+      <div class="tab-panel active" id="tab-rj">
+        <div class="card" style="margin-bottom:16px">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Date du rapport</label>
+              <input type="date" id="rj-date" class="form-control" oninput="renderRapportJour()">
+            </div>
+          </div>
+        </div>
+        <div id="rapport-jour-content"></div>
+      </div>
+      <div class="tab-panel" id="tab-rs">
+        <div class="card" style="margin-bottom:16px">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Semaine (date de début)</label>
+              <input type="date" id="rs-date" class="form-control" oninput="renderRapportSemaine()">
+            </div>
+          </div>
+        </div>
+        <div id="rapport-semaine-content"></div>
+      </div>
+      <div class="tab-panel" id="tab-rm">
+        <div class="card" style="margin-bottom:16px">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Mois</label>
+              <input type="month" id="rm-month" class="form-control" oninput="renderRapportMois()">
+            </div>
+          </div>
+        </div>
+        <div id="rapport-mois-content"></div>
+      </div>
+      <div class="tab-panel" id="tab-ra">
+        <div class="card" style="margin-bottom:16px">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Année</label>
+              <select id="ra-year" class="form-control" onchange="renderRapportAnnee()"></select>
+            </div>
+          </div>
+        </div>
+        <div id="rapport-annee-content"></div>
+      </div>
+    </section>
+
+    <!-- ======================== STATISTIQUES ======================== -->
+    <section class="section" id="section-statistiques">
+      <div class="page-header">
+        <div class="page-title">
+          <h2>Statistiques</h2>
+          <p>Analyse des performances de l'entreprise</p>
+        </div>
+        <div class="page-actions">
+          <select id="stat-period" class="form-control" style="width:160px" onchange="renderStats()">
+            <option value="30">30 derniers jours</option>
+            <option value="60">60 derniers jours</option>
+            <option value="90">90 derniers jours</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-bottom:20px">
+        <div class="card">
+          <div class="card-title"><span class="icon">📈</span> Évolution Recettes / Dépenses</div>
+          <div class="chart-container">
+            <canvas id="chart-revexp"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="icon">💹</span> Évolution Bénéfices</div>
+          <div class="chart-container">
+            <canvas id="chart-profit"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-bottom:20px">
+        <div class="card">
+          <div class="card-title"><span class="icon">🎫</span> Tickets vendus par type</div>
+          <div class="chart-container">
+            <canvas id="chart-tickets-type"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="icon">🍩</span> Répartition des recettes</div>
+          <div class="chart-container">
+            <canvas id="chart-rev-dist"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">🔄</span> Comparaison mensuelle</div>
+        <div class="chart-container">
+          <canvas id="chart-monthly-compare"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================== CONFIGURATION ======================== -->
+    <section class="section" id="section-configuration">
+      <div class="page-header">
+        <div class="page-title">
+          <h2>Configuration</h2>
+          <p>Types de tickets, prix et gestion des employés</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-primary" onclick="saveConfig()">💾 Sauvegarder</button>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title"><span class="icon">🎫</span> Types de Tickets</div>
+          <div id="ticket-config-form"></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="icon">👥</span> Employés
+            <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="openModal('modal-employee')">➕ Ajouter</button>
+          </div>
+          <div id="employee-config-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================== SAUVEGARDE ======================== -->
+    <section class="section" id="section-sauvegarde">
+      <div class="page-header">
+        <div class="page-title">
+          <h2>Sauvegarde & Restauration</h2>
+          <p>Export et import des données de l'application</p>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title"><span class="icon">📤</span> Exporter les données</div>
+          <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:16px">
+            Téléchargez une copie complète de toutes les données (distributions, clôtures, dépenses, salaires, configuration) au format JSON.
+          </p>
+          <div id="backup-stats" style="margin-bottom:16px"></div>
+          <button class="btn btn-primary" onclick="exportData()">📥 Télécharger la sauvegarde</button>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="icon">📥</span> Restaurer les données</div>
+          <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:16px">
+            Importez un fichier de sauvegarde JSON précédemment exporté. <strong style="color:var(--red)">Attention : ceci remplacera toutes les données actuelles.</strong>
+          </p>
+          <input type="file" id="import-file" accept=".json" class="form-control" style="margin-bottom:12px">
+          <button class="btn btn-danger" onclick="importData()">📤 Restaurer depuis le fichier</button>
+        </div>
+      </div>
+      <div class="card" style="margin-top:20px">
+        <div class="card-title"><span class="icon">🗑️</span> Zone de danger</div>
+        <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:16px">Supprimer définitivement toutes les données de l'application.</p>
+        <button class="btn btn-danger" onclick="confirmReset()">🗑️ Réinitialiser l'application</button>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ======================== MODALS ======================== -->
+
+<!-- Modal : Nouvelle Distribution -->
+<div class="modal-overlay" id="modal-distribution">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>🎫 Nouvelle Distribution de Tickets</h3>
+      <button class="modal-close" onclick="closeModal('modal-distribution')">✕</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input type="date" id="dist-date" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Heure</label>
+        <input type="time" id="dist-time" class="form-control">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Billetaire</label>
+        <select id="dist-ticketer" class="form-control"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Véhicule</label>
+        <input type="text" id="dist-vehicle" class="form-control" placeholder="Ex: Bus 01, Car BL-1234">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Voyage / Destination</label>
+      <input type="text" id="dist-trip" class="form-control" placeholder="Ex: Yaoundé → Douala">
+    </div>
+    <hr class="divider">
+    <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px">Quantités de tickets remises au billetaire :</p>
+    <div class="ticket-grid" id="dist-ticket-inputs"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-distribution')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveDistribution()">✅ Enregistrer la distribution</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal : Clôture -->
+<div class="modal-overlay" id="modal-cloture">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>✅ Clôture de distribution</h3>
+      <button class="modal-close" onclick="closeModal('modal-cloture')">✕</button>
+    </div>
+    <div id="cloture-dist-info" style="margin-bottom:16px"></div>
+    <hr class="divider">
+    <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px">Tickets <strong>restants</strong> (non vendus rendus par le billetaire) :</p>
+    <div class="ticket-grid" id="cloture-ticket-inputs"></div>
+    <hr class="divider">
+    <div id="cloture-auto-results" style="margin-bottom:16px"></div>
+    <div class="form-group">
+      <label class="form-label">Montant réellement encaissé (GNF)</label>
+      <input type="number" id="cloture-actual" class="form-control" placeholder="Saisissez le montant en espèces" oninput="updateCloturePreview()">
+    </div>
+    <div id="cloture-discrepancy"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-cloture')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveCloture()">✅ Valider la clôture</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal : Dépense -->
+<div class="modal-overlay" id="modal-depense">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>💸 Nouvelle Dépense</h3>
+      <button class="modal-close" onclick="closeModal('modal-depense')">✕</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input type="date" id="dep-date" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Montant (GNF)</label>
+        <input type="number" id="dep-amount" class="form-control" placeholder="0" min="0">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Catégorie</label>
+        <select id="dep-category" class="form-control">
+          <option value="Carburant">⛽ Carburant</option>
+          <option value="Péage">🛣️ Péage</option>
+          <option value="Lavage">🚿 Lavage</option>
+          <option value="Réparation">🔧 Réparation</option>
+          <option value="Entretien">🔩 Entretien</option>
+          <option value="Restauration">🍽️ Restauration équipe</option>
+          <option value="Divers">📦 Divers</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Responsable</label>
+        <select id="dep-responsible" class="form-control"></select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <input type="text" id="dep-desc" class="form-control" placeholder="Détails de la dépense…">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-depense')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveDepense()">✅ Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal : Salaire -->
+<div class="modal-overlay" id="modal-salaire">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>💳 Paiement de Salaire</h3>
+      <button class="modal-close" onclick="closeModal('modal-salaire')">✕</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Employé</label>
+        <select id="sal-employee" class="form-control" onchange="updateSalaryInfo()"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Montant (GNF)</label>
+        <input type="number" id="sal-amount" class="form-control" placeholder="0" min="0">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Période</label>
+        <input type="month" id="sal-period" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date de paiement</label>
+        <input type="date" id="sal-date" class="form-control">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Note</label>
+      <input type="text" id="sal-note" class="form-control" placeholder="Ex: Salaire complet juillet 2026">
+    </div>
+    <div id="sal-info-box" style="margin-top:8px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-salaire')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveSalaire()">✅ Enregistrer le paiement</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal : Employé -->
+<div class="modal-overlay" id="modal-employee">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-emp-title">👤 Ajouter un Employé</h3>
+      <button class="modal-close" onclick="closeModal('modal-employee')">✕</button>
+    </div>
+    <input type="hidden" id="emp-edit-id">
+    <div class="form-group">
+      <label class="form-label">Nom complet</label>
+      <input type="text" id="emp-name" class="form-control" placeholder="Prénom et Nom">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Fonction</label>
+        <input type="text" id="emp-role" class="form-control" placeholder="Ex: Billetaire, Chauffeur…">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Salaire mensuel (GNF)</label>
+        <input type="number" id="emp-salary" class="form-control" placeholder="0" min="0">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-employee')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveEmployee()">✅ Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Détail Clôture -->
+<div class="modal-overlay" id="modal-detail-cloture">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>📋 Détail de la clôture</h3>
+      <button class="modal-close" onclick="closeModal('modal-detail-cloture')">✕</button>
+    </div>
+    <div id="detail-cloture-content"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-detail-cloture')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- App loading overlay -->
+<div id="app-loading">
+  <div class="loading-spinner"></div>
+  <p>Chargement de TransportGest…</p>
+</div>
+
+<!-- Cloud Setup Modal -->
+<div id="cloud-setup-overlay" class="hidden">
+  <div class="cloud-setup-box">
+    <h2>☁️ Synchronisation Cloud</h2>
+    <p>Connectez Firebase Firestore pour partager les données en temps réel entre plusieurs appareils et utilisateurs.</p>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><div>Allez sur <strong>console.firebase.google.com</strong> → Créer un projet</div></div>
+      <div class="step"><div class="step-num">2</div><div>Ajoutez une app Web <strong>(bouton &lt;/&gt;)</strong> → copiez la config</div></div>
+      <div class="step"><div class="step-num">3</div><div>Activez <strong>Firestore Database</strong> en mode Test</div></div>
+      <div class="step"><div class="step-num">4</div><div>Collez la config Firebase ci-dessous (objet <code>firebaseConfig</code>)</div></div>
+    </div>
+    <textarea id="firebase-config-input" placeholder='{
+  "apiKey": "AIza...",
+  "authDomain": "monprojet.firebaseapp.com",
+  "projectId": "monprojet",
+  "storageBucket": "monprojet.appspot.com",
+  "messagingSenderId": "123456789",
+  "appId": "1:123456789:web:abc123"
+}'></textarea>
+    <div class="cloud-setup-actions">
+      <button class="btn btn-primary" onclick="applyFirebaseConfig()">☁️ Connecter au Cloud</button>
+      <button class="cloud-skip-btn" onclick="skipCloudSetup()">💾 Continuer en local</button>
+      <button class="cloud-skip-btn" id="disconnect-cloud-btn" onclick="disconnectCloud()" style="display:none;color:var(--red);border-color:var(--red)">🔌 Déconnecter</button>
+    </div>
+    <p style="margin-top:12px;font-size:0.75rem;color:var(--text-dim)">⚠️ En mode local, les données restent dans ce navigateur uniquement.</p>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   TRANSPORT GEST — APPLICATION JAVASCRIPT COMPLÈTE
+   ================================================================ */
+
+// ----------------------------------------------------------------
+// STORAGE KEYS
+// ----------------------------------------------------------------
+const KEYS = {
+  config:  'tg_config',
+  dist:    'tg_distributions',
+  cloture: 'tg_clotures',
+  depenses:'tg_depenses',
+  salaires:'tg_salaires'
+};
+
+// Firebase collection names (match KEYS)
+const FB_COLS = {
+  config:  'config',
+  dist:    'distributions',
+  cloture: 'clotures',
+  depenses:'depenses',
+  salaires:'salaires'
+};
+
+// ----------------------------------------------------------------
+// DEFAULT CONFIGURATION
+// ----------------------------------------------------------------
+const DEFAULT_CONFIG = {
+  ticketTypes: [
+    { id:'A', label:'Ticket Adulte Normal', price:500 },
+    { id:'B', label:'Ticket Étudiant',      price:250 },
+    { id:'C', label:'Ticket Enfant',        price:200 },
+    { id:'D', label:'Ticket VIP',           price:1000 },
+    { id:'E', label:'Ticket Abonnement',    price:800 },
+    { id:'F', label:'Ticket Spécial',       price:1500 }
+  ],
+  employees: [
+    { id:'E1', name:'Employé 1', role:'Billetaire',     salary:120000 },
+    { id:'E2', name:'Employé 2', role:'Chauffeur',      salary:150000 },
+    { id:'E3', name:'Employé 3', role:'Contrôleur',     salary:100000 },
+    { id:'E4', name:'Employé 4', role:'Gestionnaire',   salary:200000 },
+    { id:'E5', name:'Employé 5', role:'Agent d\'accueil',salary:90000 }
+  ]
+};
+
+// ----------------------------------------------------------------
+// FIREBASE STATE
+// ----------------------------------------------------------------
+let _firestore = null;       // Firestore instance (null = local mode)
+let _fbApp     = null;       // Firebase App instance
+let _fbUnsubscribers = [];   // Real-time listener cleanup functions
+let _fbReady = false;        // Whether Firebase is initialized
+
+// ----------------------------------------------------------------
+// DATA ACCESS LAYER  (localStorage + optional Firestore cloud sync)
+// ----------------------------------------------------------------
+const DB = {
+  // --- LOCAL STORAGE (instant, always available as cache) ---
+  _get(key)  { try { return JSON.parse(localStorage.getItem(key)) || null } catch(e){ return null } },
+  _set(key,val){ localStorage.setItem(key, JSON.stringify(val)) },
+
+  // --- PUBLIC READ METHODS (read from local cache) ---
+  cfg()      { return DB._get(KEYS.config)   || DEFAULT_CONFIG },
+  dists()    { return DB._get(KEYS.dist)     || [] },
+  closures() { return DB._get(KEYS.cloture)  || [] },
+  expenses() { return DB._get(KEYS.depenses) || [] },
+  salaries() { return DB._get(KEYS.salaires) || [] },
+
+  // --- PUBLIC WRITE METHODS (write local + push to Firestore) ---
+  saveCfg(c)     { DB._set(KEYS.config, c);  DB._pushDoc(FB_COLS.config,  'main', c) },
+  saveDists(d)   { DB._set(KEYS.dist, d);    DB._pushList(FB_COLS.dist,   d) },
+  saveClosures(c){ DB._set(KEYS.cloture, c); DB._pushList(FB_COLS.cloture, c) },
+  saveExpenses(e){ DB._set(KEYS.depenses, e);DB._pushList(FB_COLS.depenses, e) },
+  saveSalaries(s){ DB._set(KEYS.salaires, s);DB._pushList(FB_COLS.salaires, s) },
+
+  // --- FIRESTORE HELPERS ---
+  // Push a single document (e.g. config) to Firestore
+  async _pushDoc(colName, docId, data){
+    if(!_firestore) return;
+    try{
+      const { doc, setDoc } = window._firebaseModules;
+      setSyncStatus('syncing');
+      await setDoc(doc(_firestore, colName, docId), { data: JSON.stringify(data), updatedAt: Date.now() });
+      setSyncStatus('synced');
+    } catch(e){ console.error('Firestore write error:', e); setSyncStatus('error'); }
+  },
+
+  // Push an array as a single document (simple & free-tier friendly)
+  async _pushList(colName, arr){
+    if(!_firestore) return;
+    try{
+      const { doc, setDoc } = window._firebaseModules;
+      setSyncStatus('syncing');
+      await setDoc(doc(_firestore, colName, 'list'), { data: JSON.stringify(arr), updatedAt: Date.now() });
+      setSyncStatus('synced');
+    } catch(e){ console.error('Firestore write error:', e); setSyncStatus('error'); }
+  }
+};
+
+// ----------------------------------------------------------------
+// SYNC STATUS UI
+// ----------------------------------------------------------------
+function setSyncStatus(status){
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  if(!dot||!lbl) return;
+  dot.className = status;
+  const labels = { synced:'☁️ Cloud sync', syncing:'⏳ Synchronisation…', error:'⚠️ Erreur sync', local:'💾 Mode local' };
+  lbl.textContent = labels[status]||'Mode local';
+}
+
+// ----------------------------------------------------------------
+// CLOUD SETUP / FIREBASE INIT
+// ----------------------------------------------------------------
+function openCloudSetup(){
+  const overlay = document.getElementById('cloud-setup-overlay');
+  overlay.classList.remove('hidden');
+  // Show disconnect button if already connected
+  const disconnBtn = document.getElementById('disconnect-cloud-btn');
+  if(disconnBtn) disconnBtn.style.display = _firestore ? 'block' : 'none';
+  // Pre-fill saved config if any
+  const saved = localStorage.getItem('tg_firebase_config');
+  if(saved) document.getElementById('firebase-config-input').value = saved;
+}
+
+function skipCloudSetup(){
+  document.getElementById('cloud-setup-overlay').classList.add('hidden');
+  // Mark as skipped so we don't show again on next load (unless explicitly opened)
+  localStorage.setItem('tg_cloud_skipped', '1');
+}
+
+function disconnectCloud(){
+  // Unsubscribe listeners
+  _fbUnsubscribers.forEach(fn=>fn());
+  _fbUnsubscribers = [];
+  _firestore = null;
+  _fbApp = null;
+  localStorage.removeItem('tg_firebase_config');
+  localStorage.removeItem('tg_cloud_skipped');
+  setSyncStatus('local');
+  document.getElementById('cloud-setup-overlay').classList.add('hidden');
+  toast('Déconnecté du cloud — mode local actif','warn');
+}
+
+async function applyFirebaseConfig(){
+  const raw = document.getElementById('firebase-config-input').value.trim();
+  if(!raw){ toast('Veuillez coller la configuration Firebase','error'); return; }
+  let cfg;
+  try{
+    // Support both plain object and object with variable declaration
+    const cleaned = raw.replace(/^\s*const\s+\w+\s*=\s*/,'').replace(/;\s*$/,'');
+    cfg = JSON.parse(cleaned);
+  }catch(e){
+    try{
+      // Try evaluating as JS object (handles unquoted keys)
+      cfg = Function('return ('+raw+')')();
+    }catch(e2){
+      toast('Format de configuration invalide — vérifiez le JSON','error');
+      return;
+    }
+  }
+  if(!cfg.projectId || !cfg.apiKey){
+    toast('Configuration incomplète (apiKey et projectId requis)','error');
+    return;
+  }
+  localStorage.setItem('tg_firebase_config', JSON.stringify(cfg));
+  await initFirebase(cfg);
+  if(_firestore){
+    document.getElementById('cloud-setup-overlay').classList.add('hidden');
+    toast('☁️ Connexion Firebase réussie ! Synchronisation active.','success');
+  }
+}
+
+async function initFirebase(cfg){
+  // Wait for Firebase modules to be loaded
+  if(!window._firebaseModules){
+    await new Promise(resolve=>window.addEventListener('firebase-modules-ready', resolve, {once:true}));
+  }
+  const { initializeApp, getFirestore, doc, collection, onSnapshot, enableIndexedDbPersistence } = window._firebaseModules;
+  try{
+    // Cleanup previous app if exists
+    _fbUnsubscribers.forEach(fn=>fn());
+    _fbUnsubscribers = [];
+
+    _fbApp = initializeApp(cfg, cfg.projectId + '_' + Date.now());
+    _firestore = getFirestore(_fbApp);
+
+    // Enable offline persistence (so app works offline too)
+    try{ await enableIndexedDbPersistence(_firestore); }catch(e){}
+
+    setSyncStatus('syncing');
+
+    // Load all data from Firestore and overwrite local cache
+    await loadAllFromFirestore();
+
+    // Set up real-time listeners for each collection
+    setupRealtimeListeners();
+
+    setSyncStatus('synced');
+  }catch(e){
+    console.error('Firebase init error:', e);
+    _firestore = null;
+    setSyncStatus('error');
+    toast('Erreur de connexion Firebase : ' + e.message, 'error');
+  }
+}
+
+async function loadAllFromFirestore(){
+  if(!_firestore) return;
+  const { doc, getDoc } = window._firebaseModules || {};
+  if(!getDoc) return;
+  try{
+    // Load config
+    const cfgSnap = await getDoc(doc(_firestore, FB_COLS.config, 'main'));
+    if(cfgSnap.exists()){ const d = cfgSnap.data(); DB._set(KEYS.config, JSON.parse(d.data||'null')); }
+    // Load lists
+    const cols = [
+      [FB_COLS.dist,     KEYS.dist],
+      [FB_COLS.cloture,  KEYS.cloture],
+      [FB_COLS.depenses, KEYS.depenses],
+      [FB_COLS.salaires, KEYS.salaires]
+    ];
+    for(const [col, key] of cols){
+      const snap = await getDoc(doc(_firestore, col, 'list'));
+      if(snap.exists()){ const d = snap.data(); DB._set(key, JSON.parse(d.data||'[]')); }
+    }
+  }catch(e){ console.error('loadAllFromFirestore error:', e); }
+}
+
+function setupRealtimeListeners(){
+  if(!_firestore) return;
+  const { doc, onSnapshot } = window._firebaseModules;
+
+  const watch = (colName, localKey, onUpdate) => {
+    const unsub = onSnapshot(doc(_firestore, colName, colName===FB_COLS.config?'main':'list'),
+      snap => {
+        if(!snap.exists()) return;
+        const raw = JSON.parse(snap.data().data||'null');
+        if(raw===null) return;
+        DB._set(localKey, raw);
+        onUpdate();
+      },
+      err => { console.error('Snapshot error:', err); setSyncStatus('error'); }
+    );
+    _fbUnsubscribers.push(unsub);
+  };
+
+  watch(FB_COLS.config,  KEYS.config,   () => { renderSection(currentSection); });
+  watch(FB_COLS.dist,    KEYS.dist,     () => { if(currentSection==='distribution'||currentSection==='cloture') renderSection(currentSection); updateBadge(); refreshDashboard(); });
+  watch(FB_COLS.cloture, KEYS.cloture,  () => { if(currentSection==='cloture') renderSection('cloture'); refreshDashboard(); });
+  watch(FB_COLS.depenses,KEYS.depenses, () => { if(currentSection==='depenses') renderSection('depenses'); refreshDashboard(); });
+  watch(FB_COLS.salaires,KEYS.salaires, () => { if(currentSection==='salaires') renderSection('salaires'); refreshDashboard(); });
+}
+
+// ----------------------------------------------------------------
+// UTILITIES
+// ----------------------------------------------------------------
+function uuid(){
+  return 'xxxx-xxxx-xxxx'.replace(/x/g,()=>(Math.random()*16|0).toString(16));
+}
+function today(){ return new Date().toISOString().split('T')[0] }
+function nowTime(){
+  const d=new Date();
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function fmt(n){ return Number(n||0).toLocaleString('fr-FR') + ' GNF' }
+function fmtN(n){ return Number(n||0).toLocaleString('fr-FR') }
+function dateLabel(d){
+  return new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+}
+function shortDate(d){
+  return new Date(d+'T12:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
+}
+function getWeekDates(baseDate){
+  const d = new Date(baseDate+'T12:00:00');
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day===0?-6:1);
+  const mon = new Date(d); mon.setDate(diff);
+  const dates = [];
+  for(let i=0;i<7;i++){
+    const dd = new Date(mon); dd.setDate(mon.getDate()+i);
+    dates.push(dd.toISOString().split('T')[0]);
+  }
+  return dates;
+}
+function getTicketColors(){
+  return {A:'#f59e0b',B:'#60a5fa',C:'#10b981',D:'#8b5cf6',E:'#ef4444',F:'#06b6d4'};
+}
+function empById(id){ return DB.cfg().employees.find(e=>e.id===id) }
+function ticketById(id){ return DB.cfg().ticketTypes.find(t=>t.id===id) }
+
+// Active clôture distribution
+let _clotureDistId = null;
+
+// ----------------------------------------------------------------
+// NAVIGATION
+// ----------------------------------------------------------------
+let currentSection = 'dashboard';
+let charts = {};
+
+function navigate(sec){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('section-'+sec).classList.add('active');
+  document.querySelector(`[data-section="${sec}"]`).classList.add('active');
+  currentSection = sec;
+  // close sidebar on mobile
+  if(window.innerWidth<=900) document.getElementById('sidebar').classList.remove('open');
+  renderSection(sec);
+}
+
+function renderSection(sec){
+  switch(sec){
+    case 'dashboard':     refreshDashboard(); break;
+    case 'distribution':  renderDistributions(); break;
+    case 'cloture':       renderCloture(); break;
+    case 'depenses':      renderDepenses(); renderKpiDepenses(); break;
+    case 'salaires':      renderSalaires(); break;
+    case 'rapports':      initRapports(); break;
+    case 'statistiques':  renderStats(); break;
+    case 'configuration': renderConfig(); break;
+    case 'sauvegarde':    renderSauvegarde(); break;
+  }
+}
+
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+function switchDashTab(tab){
+  document.querySelectorAll('#dash-tabs .tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  document.querySelectorAll('#section-dashboard .tab-panel').forEach(p=>{
+    p.classList.toggle('active',p.id==='tab-'+tab);
+  });
+  if(tab==='week') renderWeekDash();
+  if(tab==='month') renderMonthDash();
+  if(tab==='paie') renderPaieAnalysis();
+}
+
+function switchRapportTab(tab){
+  document.querySelectorAll('#section-rapports .tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  document.querySelectorAll('#section-rapports .tab-panel').forEach(p=>{
+    p.classList.toggle('active',p.id==='tab-'+tab);
+  });
+}
+
+// ----------------------------------------------------------------
+// MODAL
+// ----------------------------------------------------------------
+function openModal(id){ document.getElementById(id).classList.add('open') }
+function closeModal(id){ document.getElementById(id).classList.remove('open') }
+document.querySelectorAll('.modal-overlay').forEach(m=>{
+  m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('open') });
+});
+
+// ----------------------------------------------------------------
+// TOAST
+// ----------------------------------------------------------------
+function toast(msg, type='info'){
+  const icons={success:'✅',error:'❌',warn:'⚠️',info:'ℹ️'};
+  const el=document.createElement('div');
+  el.className=`toast toast-${type}`;
+  el.innerHTML=`<span>${icons[type]}</span><span>${msg}</span>`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(()=>{ el.style.animation='slideOut 0.3s ease forwards'; setTimeout(()=>el.remove(),300); },3500);
+}
+
+// ----------------------------------------------------------------
+// DASHBOARD
+// ----------------------------------------------------------------
+function refreshDashboard(){
+  const tab = document.querySelector('#dash-tabs .tab.active')?.dataset.tab || 'day';
+  if(tab==='day') renderDayDash();
+  else if(tab==='week') renderWeekDash();
+  else if(tab==='month') renderMonthDash();
+  else if(tab==='paie') renderPaieAnalysis();
+  updateDateDisplay();
+}
+
+function updateDateDisplay(){
+  const el = document.getElementById('current-date-display');
+  const lbl = document.getElementById('dash-date-label');
+  const now = new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  if(el) el.textContent = now;
+  if(lbl) lbl.textContent = now;
+}
+
+// Compute data for a date range
+function computePeriod(dates){
+  const closures = DB.closures();
+  const expenses = DB.expenses();
+  const salaries = DB.salaries();
+  const cfg = DB.cfg();
+
+  let totalRevenue=0, totalActual=0, totalExpenses=0, totalSalaries=0;
+  let soldByType={};
+  cfg.ticketTypes.forEach(t=>soldByType[t.id]=0);
+  let anomalies=[];
+  let dailyData={};
+
+  dates.forEach(d=>{
+    const dayCls = closures.filter(c=>c.date===d);
+    const dayExp = expenses.filter(e=>e.date===d);
+    const daySal = salaries.filter(s=>s.date===d);
+    let dayRev=0, dayAct=0, dayExp2=0;
+    dayCls.forEach(c=>{
+      dayRev += c.theoreticalRevenue||0;
+      dayAct += c.actualRevenue||0;
+      if(c.hasAnomaly) anomalies.push(c);
+      cfg.ticketTypes.forEach(t=>{
+        soldByType[t.id]+=(c.sold?.[t.id]||0);
+      });
+    });
+    dayExp.forEach(e=>{ dayExp2+=e.amount||0 });
+    daySal.forEach(s=>{ totalSalaries+=s.amount||0 });
+    totalRevenue+=dayRev;
+    totalActual+=dayAct;
+    totalExpenses+=dayExp2;
+    dailyData[d]={revenue:dayAct, expenses:dayExp2, profit:dayAct-dayExp2};
+  });
+
+  const totalSold = Object.values(soldByType).reduce((a,b)=>a+b,0);
+  return {totalRevenue, totalActual, totalExpenses, totalSalaries, soldByType, totalSold, anomalies, dailyData};
+}
+
+function renderDayDash(){
+  const d = today();
+  const data = computePeriod([d]);
+
+  const kpiEl = document.getElementById('kpi-day');
+  const netProfit = data.totalActual - data.totalExpenses;
+
+  kpiEl.innerHTML = `
+    <div class="kpi-card" style="--accent:var(--green)">
+      <div class="kpi-label">Recette brute du jour</div>
+      <div class="kpi-value">${fmtN(data.totalActual)}</div>
+      <div class="kpi-sub">GNF encaissés</div>
+      <div class="kpi-icon">💰</div>
+    </div>
+    <div class="kpi-card" style="--accent:var(--red)">
+      <div class="kpi-label">Dépenses du jour</div>
+      <div class="kpi-value">${fmtN(data.totalExpenses)}</div>
+      <div class="kpi-sub">GNF dépensés</div>
+      <div class="kpi-icon">💸</div>
+    </div>
+    <div class="kpi-card" style="--accent:${netProfit>=0?'var(--blue)':'var(--red)'}">
+      <div class="kpi-label">Bénéfice net du jour</div>
+      <div class="kpi-value" style="color:${netProfit>=0?'var(--green)':'var(--red)'}">${fmtN(netProfit)}</div>
+      <div class="kpi-sub">Recette − Dépenses</div>
+      <div class="kpi-icon">📊</div>
+    </div>
+    <div class="kpi-card" style="--accent:var(--purple)">
+      <div class="kpi-label">Tickets vendus</div>
+      <div class="kpi-value">${fmtN(data.totalSold)}</div>
+      <div class="kpi-sub">Tous types confondus</div>
+      <div class="kpi-icon">🎫</div>
+    </div>
+  `;
+
+  // Tickets table
+  const cfg = DB.cfg();
+  const tk = document.getElementById('day-tickets-table');
+  const rows = cfg.ticketTypes.map(t=>{
+    const sold = data.soldByType[t.id]||0;
+    const rev = sold * t.price;
+    return `<tr>
+      <td><span class="badge tt-${t.id}">${t.id}</span></td>
+      <td>${t.label}</td>
+      <td style="text-align:right">${fmtN(sold)}</td>
+      <td style="text-align:right">${fmt(rev)}</td>
+    </tr>`;
+  }).join('');
+  tk.innerHTML = data.totalSold > 0 ? `<div class="table-wrapper"><table>
+    <thead><tr><th>Type</th><th>Nom</th><th>Vendus</th><th>Recette</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr class="tfoot-row"><td colspan="2">TOTAL</td><td style="text-align:right">${fmtN(data.totalSold)}</td><td style="text-align:right">${fmt(data.totalActual)}</td></tr></tfoot>
+  </table></div>` : `<div class="empty-state"><span class="icon">🎫</span><p>Aucune vente aujourd'hui</p></div>`;
+
+  // Expenses table
+  const dayExps = DB.expenses().filter(e=>e.date===d);
+  const ed = document.getElementById('day-expenses-table');
+  ed.innerHTML = dayExps.length > 0 ? `<div class="table-wrapper"><table>
+    <thead><tr><th>Catégorie</th><th>Description</th><th>Montant</th></tr></thead>
+    <tbody>${dayExps.map(e=>`<tr><td><span class="badge badge-gold">${e.category}</span></td><td>${e.description||'—'}</td><td style="text-align:right">${fmt(e.amount)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr class="tfoot-row"><td colspan="2">TOTAL</td><td style="text-align:right">${fmt(data.totalExpenses)}</td></tr></tfoot>
+  </table></div>` : `<div class="empty-state"><span class="icon">💸</span><p>Aucune dépense aujourd'hui</p></div>`;
+
+  // Anomalies
+  const ad = document.getElementById('day-anomalies');
+  ad.innerHTML = data.anomalies.length > 0 ?
+    data.anomalies.map(a=>`<div class="alert alert-error">⚠️ Anomalie détectée — Écart de <strong>${fmt(Math.abs(a.discrepancy))}</strong> sur la clôture du ${dateLabel(a.date)}</div>`).join('') : '';
+}
+
+function renderWeekDash(){
+  const dates = getWeekDates(today());
+  const data = computePeriod(dates);
+
+  const kpiEl = document.getElementById('kpi-week');
+  const net = data.totalActual - data.totalExpenses;
+  kpiEl.innerHTML = `
+    <div class="kpi-card" style="--accent:var(--green)">
+      <div class="kpi-label">Recettes semaine</div>
+      <div class="kpi-value">${fmtN(data.totalActual)}</div>
+      <div class="kpi-sub">GNF encaissés</div><div class="kpi-icon">💰</div>
+    </div>
+    <div class="kpi-card" style="--accent:var(--red)">
+      <div class="kpi-label">Dépenses semaine</div>
+      <div class="kpi-value">${fmtN(data.totalExpenses)}</div>
+      <div class="kpi-sub">GNF dépensés</div><div class="kpi-icon">💸</div>
+    </div>
+    <div class="kpi-card" style="--accent:var(--blue)">
+      <div class="kpi-label">Bénéfice semaine</div>
+      <div class="kpi-value" style="color:${net>=0?'var(--green)':'var(--red)'}">${fmtN(net)}</div>
+      <div class="kpi-sub">Net</div><div class="kpi-icon">📊</div>
+    </div>
+    <div class="kpi-card" style="--accent:var(--purple)">
+      <div class="kpi-label">Tickets vendus</div>
+      <div class="kpi-value">${fmtN(data.totalSold)}</div>
+      <div class="kpi-sub">Cette semaine</div><div class="kpi-icon">🎫</div>
+    </div>
+  `;
+
+  // Chart weekly
+  const labels = dates.map(d=>shortDate(d));
+  const revenues = dates.map(d=>data.dailyData[d]?.revenue||0);
+  const exps = dates.map(d=>data.dailyData[d]?.expenses||0);
+  const profits = dates.map(d=>data.dailyData[d]?.profit||0);
+  destroyChart('chart-week');
+  charts['chart-week'] = new Chart(document.getElementById('chart-week'),{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'Recettes',data:revenues,backgroundColor:'rgba(16,185,129,0.7)',borderRadius:4},
+        {label:'Dépenses',data:exps,backgroundColor:'rgba(239,68,68,0.7)',borderRadius:4},
+        {label:'Bénéfice',data:profits,type:'line',borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.1)',tension:0.4,fill:true,pointBackgroundColor:'#f59e0b'}
+      ]
+    },
+    options:chartOpts('GNF')
+  });
+}
+
+function renderMonthDash(){
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const monthDates = getMonthDates(ym);
+  const data = computePeriod(monthDates);
+  const net = data.totalActual - data.totalExpenses;
+  const netAfterSal = net - data.totalSalaries;
+
+  const kpiEl = document.getElementById('kpi-month');
+  kpiEl.innerHTML = `
+    <div class="kpi-card" style="--accent:var(--green)"><div class="kpi-label">Recettes mensuelles</div><div class="kpi-value">${fmtN(data.totalActual)}</div><div class="kpi-sub">GNF</div><div class="kpi-icon">💰</div></div>
+    <div class="kpi-card" style="--accent:var(--red)"><div class="kpi-label">Dépenses mensuelles</div><div class="kpi-value">${fmtN(data.totalExpenses)}</div><div class="kpi-sub">GNF</div><div class="kpi-icon">💸</div></div>
+    <div class="kpi-card" style="--accent:var(--purple)"><div class="kpi-label">Salaires versés</div><div class="kpi-value">${fmtN(data.totalSalaries)}</div><div class="kpi-sub">Ce mois</div><div class="kpi-icon">👥</div></div>
+    <div class="kpi-card" style="--accent:var(--blue)"><div class="kpi-label">Bénéfice mensuel</div><div class="kpi-value" style="color:${netAfterSal>=0?'var(--green)':'var(--red)'}">${fmtN(netAfterSal)}</div><div class="kpi-sub">Après salaires</div><div class="kpi-icon">📊</div></div>
+    <div class="kpi-card" style="--accent:var(--cyan)"><div class="kpi-label">Tickets vendus</div><div class="kpi-value">${fmtN(data.totalSold)}</div><div class="kpi-sub">Ce mois</div><div class="kpi-icon">🎫</div></div>
+  `;
+
+  // Bar chart
+  const labels = monthDates.map(d=>shortDate(d));
+  const revenues = monthDates.map(d=>data.dailyData[d]?.revenue||0);
+  const exps = monthDates.map(d=>data.dailyData[d]?.expenses||0);
+  destroyChart('chart-month-bar');
+  charts['chart-month-bar'] = new Chart(document.getElementById('chart-month-bar'),{
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'Recettes',data:revenues,backgroundColor:'rgba(16,185,129,0.7)',borderRadius:3},
+      {label:'Dépenses',data:exps,backgroundColor:'rgba(239,68,68,0.7)',borderRadius:3}
+    ]},
+    options:chartOpts('GNF')
+  });
+
+  // Pie chart
+  const cfg = DB.cfg();
+  const colors = getTicketColors();
+  destroyChart('chart-month-pie');
+  charts['chart-month-pie'] = new Chart(document.getElementById('chart-month-pie'),{
+    type:'doughnut',
+    data:{
+      labels:cfg.ticketTypes.map(t=>t.label),
+      datasets:[{data:cfg.ticketTypes.map(t=>data.soldByType[t.id]||0),backgroundColor:cfg.ticketTypes.map(t=>colors[t.id]||'#888'),borderWidth:0,hoverOffset:8}]
+    },
+    options:{...chartOpts(),plugins:{legend:{position:'right',labels:{color:'#8b9cc8',font:{size:11}}}}}
+  });
+}
+
+function renderPaieAnalysis(){
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const allDates = getAllDates();
+  const allData = computePeriod(allDates);
+  const cfg = DB.cfg();
+
+  const totalMonthlySalaries = cfg.employees.reduce((a,e)=>a+e.salary,0);
+  const paidSalaries = allData.totalSalaries;
+  const remainingSalaries = Math.max(0, totalMonthlySalaries - paidSalaries);
+  const netBeforeSalaries = allData.totalActual - allData.totalExpenses;
+  const estimatedAfter = netBeforeSalaries - remainingSalaries;
+
+  const el = document.getElementById('paie-analysis-content');
+  el.innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi-card" style="--accent:var(--green)"><div class="kpi-label">Recettes cumulées</div><div class="kpi-value">${fmtN(allData.totalActual)}</div><div class="kpi-sub">GNF total encaissé</div><div class="kpi-icon">💰</div></div>
+      <div class="kpi-card" style="--accent:var(--red)"><div class="kpi-label">Dépenses cumulées</div><div class="kpi-value">${fmtN(allData.totalExpenses)}</div><div class="kpi-sub">GNF dépensés</div><div class="kpi-icon">💸</div></div>
+      <div class="kpi-card" style="--accent:var(--blue)"><div class="kpi-label">Bénéfice provisoire</div><div class="kpi-value" style="color:${netBeforeSalaries>=0?'var(--green)':'var(--red)'}">${fmtN(netBeforeSalaries)}</div><div class="kpi-sub">Avant paie</div><div class="kpi-icon">📊</div></div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi-card" style="--accent:var(--purple)"><div class="kpi-label">Total salaires (mois)</div><div class="kpi-value">${fmtN(totalMonthlySalaries)}</div><div class="kpi-sub">Masse salariale</div><div class="kpi-icon">👥</div></div>
+      <div class="kpi-card" style="--accent:var(--gold)"><div class="kpi-label">Salaires restant à payer</div><div class="kpi-value" style="color:var(--gold)">${fmtN(remainingSalaries)}</div><div class="kpi-sub">Non encore versés</div><div class="kpi-icon">💳</div></div>
+      <div class="kpi-card" style="--accent:${estimatedAfter>=0?'var(--green)':'var(--red)'}"><div class="kpi-label">Bénéfice estimé après paie</div><div class="kpi-value" style="color:${estimatedAfter>=0?'var(--green)':'var(--red)'}">${fmtN(estimatedAfter)}</div><div class="kpi-sub">Trésorerie disponible</div><div class="kpi-icon">🏦</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="icon">👥</span> Situation par employé</div>
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Employé</th><th>Fonction</th><th>Salaire mensuel</th><th>Total versé</th><th>Reste à payer</th><th>Statut</th></tr></thead>
+        <tbody>
+          ${cfg.employees.map(emp=>{
+            const paid = DB.salaries().filter(s=>s.employeeId===emp.id).reduce((a,s)=>a+s.amount,0);
+            const rem = Math.max(0,emp.salary-paid);
+            return `<tr>
+              <td><strong>${emp.name}</strong></td>
+              <td>${emp.role}</td>
+              <td style="text-align:right">${fmt(emp.salary)}</td>
+              <td style="text-align:right;color:var(--green)">${fmt(paid)}</td>
+              <td style="text-align:right;color:${rem>0?'var(--gold)':'var(--green)'}">${fmt(rem)}</td>
+              <td>${rem===0?'<span class="badge badge-green">✅ Payé</span>':'<span class="badge badge-gold">⏳ En attente</span>'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+        <tfoot>
+          <tr class="tfoot-row">
+            <td colspan="2">TOTAL</td>
+            <td style="text-align:right">${fmt(totalMonthlySalaries)}</td>
+            <td style="text-align:right">${fmt(paidSalaries)}</td>
+            <td style="text-align:right">${fmt(remainingSalaries)}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table></div>
+    </div>
+  `;
+}
+
+// ----------------------------------------------------------------
+// DISTRIBUTION
+// ----------------------------------------------------------------
+function renderDistributions(){
+  const dists = DB.dists();
+  const cfg = DB.cfg();
+  const el = document.getElementById('distribution-list');
+  if(dists.length===0){
+    el.innerHTML='<div class="empty-state"><span class="icon">🎫</span><p>Aucune distribution enregistrée.<br>Cliquez sur <strong>Nouvelle distribution</strong> pour commencer.</p></div>';
+    return;
+  }
+  const sorted = [...dists].sort((a,b)=>b.date.localeCompare(a.date)||(b.time||'').localeCompare(a.time||''));
+  el.innerHTML=`<div class="table-wrapper"><table>
+    <thead><tr><th>Date</th><th>Heure</th><th>Billetaire</th><th>Véhicule</th><th>Voyage</th><th>Total remis</th><th>Statut</th><th>Actions</th></tr></thead>
+    <tbody>
+    ${sorted.map(d=>{
+      const emp = empById(d.ticketerId);
+      const total = cfg.ticketTypes.reduce((a,t)=>a+(d.tickets?.[t.id]||0),0);
+      return `<tr>
+        <td>${dateLabel(d.date)}</td>
+        <td>${d.time||'—'}</td>
+        <td>${emp?emp.name:'—'}</td>
+        <td>${d.vehicle||'—'}</td>
+        <td>${d.trip||'—'}</td>
+        <td style="text-align:right"><span class="badge badge-blue">${fmtN(total)} tickets</span></td>
+        <td>${d.status==='closed'?'<span class="badge badge-green">✅ Clôturé</span>':'<span class="badge badge-gold">🔓 Ouvert</span>'}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteDistribution('${d.id}')">🗑️</button></td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table></div>`;
+
+  // Update badge
+  const openCount = dists.filter(d=>d.status==='open').length;
+  const badge = document.getElementById('badge-cloture');
+  badge.style.display = openCount>0?'inline':'none';
+  badge.textContent = openCount;
+}
+
+function openDistributionModal(){
+  const cfg = DB.cfg();
+  // Fill billetaire select
+  const sel = document.getElementById('dist-ticketer');
+  sel.innerHTML = cfg.employees.map(e=>`<option value="${e.id}">${e.name} — ${e.role}</option>`).join('');
+  // Set defaults
+  document.getElementById('dist-date').value = today();
+  document.getElementById('dist-time').value = nowTime();
+  document.getElementById('dist-vehicle').value = '';
+  document.getElementById('dist-trip').value = '';
+  // Build ticket inputs
+  const tc = getTicketColors();
+  document.getElementById('dist-ticket-inputs').innerHTML = cfg.ticketTypes.map(t=>`
+    <div class="ticket-row">
+      <div class="ticket-type-badge tt-${t.id}">${t.id}</div>
+      <div class="ticket-info">
+        <div class="name">${t.label}</div>
+        <div class="price">${fmt(t.price)} / ticket</div>
+      </div>
+      <input type="number" id="dist-tk-${t.id}" class="form-control ticket-input" value="0" min="0" placeholder="0">
+    </div>`).join('');
+  openModal('modal-distribution');
+}
+
+function saveDistribution(){
+  const cfg = DB.cfg();
+  const date = document.getElementById('dist-date').value;
+  const time = document.getElementById('dist-time').value;
+  const ticketerId = document.getElementById('dist-ticketer').value;
+  const vehicle = document.getElementById('dist-vehicle').value.trim();
+  const trip = document.getElementById('dist-trip').value.trim();
+  if(!date||!ticketerId){ toast('Veuillez remplir tous les champs obligatoires.','error'); return; }
+  const tickets = {};
+  cfg.ticketTypes.forEach(t=>{
+    tickets[t.id] = parseInt(document.getElementById('dist-tk-'+t.id)?.value)||0;
+  });
+  const totalTickets = Object.values(tickets).reduce((a,b)=>a+b,0);
+  if(totalTickets===0){ toast('Aucun ticket remis — veuillez saisir au moins un ticket.','warn'); return; }
+  const dists = DB.dists();
+  dists.push({ id:uuid(), date, time, ticketerId, vehicle, trip, tickets, status:'open' });
+  DB.saveDists(dists);
+  closeModal('modal-distribution');
+  toast('Distribution enregistrée avec succès ✅','success');
+  renderDistributions();
+  updateBadge();
+}
+
+function deleteDistribution(id){
+  if(!confirm('Supprimer cette distribution ? Cette action est irréversible.')) return;
+  DB.saveDists(DB.dists().filter(d=>d.id!==id));
+  toast('Distribution supprimée.','warn');
+  renderDistributions();
+}
+
+function updateBadge(){
+  const openCount = DB.dists().filter(d=>d.status==='open').length;
+  const badge = document.getElementById('badge-cloture');
+  badge.style.display = openCount>0?'inline':'none';
+  badge.textContent = openCount;
+}
+
+// ----------------------------------------------------------------
+// CLOTURE
+// ----------------------------------------------------------------
+function renderCloture(){
+  const dists = DB.dists();
+  const open = dists.filter(d=>d.status==='open');
+  const el = document.getElementById('open-distributions');
+
+  if(open.length===0){
+    el.innerHTML='<div class="empty-state"><span class="icon">✅</span><p>Aucune distribution en attente de clôture.</p></div>';
+  } else {
+    const cfg = DB.cfg();
+    el.innerHTML=`<div class="grid-auto">
+      ${open.map(d=>{
+        const emp = empById(d.ticketerId);
+        const total = cfg.ticketTypes.reduce((a,t)=>a+(d.tickets?.[t.id]||0),0);
+        return `<div class="card" style="border-color:rgba(245,158,11,0.3)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+            <div>
+              <div style="font-weight:700;font-size:1rem">${d.vehicle||'Véhicule inconnu'}</div>
+              <div style="color:var(--text-muted);font-size:0.8rem">${d.trip||'—'} · ${d.time||'—'}</div>
+            </div>
+            <span class="badge badge-gold">🔓 Ouvert</span>
+          </div>
+          <div style="font-size:0.83rem;color:var(--text-muted);margin-bottom:4px">📅 ${dateLabel(d.date)}</div>
+          <div style="font-size:0.83rem;color:var(--text-muted);margin-bottom:12px">👤 ${emp?emp.name:'—'}</div>
+          <div style="font-size:0.85rem;margin-bottom:12px"><span class="badge badge-blue">${fmtN(total)} tickets remis</span></div>
+          <button class="btn btn-primary" style="width:100%" onclick="openClotureModal('${d.id}')">✅ Clôturer</button>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  // Closed list
+  const closed = DB.closures();
+  const closedEl = document.getElementById('closed-list');
+  if(closed.length===0){
+    closedEl.innerHTML='<div class="empty-state"><span class="icon">📋</span><p>Aucune clôture effectuée.</p></div>';
+    return;
+  }
+  const sortedClosed = [...closed].sort((a,b)=>b.date.localeCompare(a.date));
+  closedEl.innerHTML=`<div class="table-wrapper"><table>
+    <thead><tr><th>Date</th><th>Voyage</th><th>Vendus</th><th>Recette théorique</th><th>Recette réelle</th><th>Écart</th><th>Statut</th><th>Actions</th></tr></thead>
+    <tbody>
+    ${sortedClosed.map(c=>{
+      const dist = DB.dists().find(d=>d.id===c.distributionId)||{};
+      const ecart = c.discrepancy||0;
+      return `<tr>
+        <td>${dateLabel(c.date)}</td>
+        <td>${dist.trip||'—'}</td>
+        <td style="text-align:right">${fmtN(c.totalSold||0)}</td>
+        <td style="text-align:right">${fmt(c.theoreticalRevenue)}</td>
+        <td style="text-align:right">${fmt(c.actualRevenue)}</td>
+        <td style="text-align:right;color:${ecart===0?'var(--green)':ecart>0?'var(--blue)':'var(--red)'}">${ecart>=0?'+':''}${fmt(ecart)}</td>
+        <td>${c.hasAnomaly?'<span class="anomaly-flag">⚠️ Anomalie</span>':'<span class="ok-flag">✅ OK</span>'}</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="viewCloture('${c.id}')">👁️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteCloture('${c.id}')">🗑️</button></td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+function openClotureModal(distId){
+  const dist = DB.dists().find(d=>d.id===distId);
+  if(!dist) return;
+  _clotureDistId = distId;
+  const cfg = DB.cfg();
+  const emp = empById(dist.ticketerId);
+
+  // Info header
+  document.getElementById('cloture-dist-info').innerHTML=`
+    <div class="grid-2">
+      <div class="result-box"><div class="r-label">Véhicule</div><div class="r-value" style="font-size:1rem">${dist.vehicle||'—'}</div></div>
+      <div class="result-box"><div class="r-label">Voyage</div><div class="r-value" style="font-size:1rem">${dist.trip||'—'}</div></div>
+      <div class="result-box"><div class="r-label">Billetaire</div><div class="r-value" style="font-size:1rem">${emp?emp.name:'—'}</div></div>
+      <div class="result-box"><div class="r-label">Date / Heure</div><div class="r-value" style="font-size:1rem">${dist.date} · ${dist.time||'—'}</div></div>
+    </div>`;
+
+  // Ticket inputs
+  const tc = getTicketColors();
+  document.getElementById('cloture-ticket-inputs').innerHTML = cfg.ticketTypes.map(t=>{
+    const remis = dist.tickets?.[t.id]||0;
+    return `<div class="ticket-row">
+      <div class="ticket-type-badge tt-${t.id}">${t.id}</div>
+      <div class="ticket-info">
+        <div class="name">${t.label}</div>
+        <div class="price">Remis : <strong>${remis}</strong> · ${fmt(t.price)}/u</div>
+      </div>
+      <input type="number" id="cl-tk-${t.id}" class="form-control ticket-input" value="0" min="0" max="${remis}" oninput="updateCloturePreview()">
+    </div>`;
+  }).join('');
+
+  document.getElementById('cloture-actual').value = '';
+  document.getElementById('cloture-auto-results').innerHTML = '';
+  document.getElementById('cloture-discrepancy').innerHTML = '';
+
+  openModal('modal-cloture');
+  updateCloturePreview();
+}
+
+function updateCloturePreview(){
+  if(!_clotureDistId) return;
+  const dist = DB.dists().find(d=>d.id===_clotureDistId);
+  if(!dist) return;
+  const cfg = DB.cfg();
+  let theor=0, totalSold=0;
+  const sold={}, remaining={};
+  cfg.ticketTypes.forEach(t=>{
+    const remis = dist.tickets?.[t.id]||0;
+    const rest = parseInt(document.getElementById('cl-tk-'+t.id)?.value)||0;
+    const s = Math.max(0,remis-rest);
+    sold[t.id]=s; remaining[t.id]=rest;
+    totalSold+=s;
+    theor+=s*t.price;
+  });
+
+  const actual = parseFloat(document.getElementById('cloture-actual')?.value)||0;
+  const disc = actual - theor;
+
+  document.getElementById('cloture-auto-results').innerHTML=`
+    <div class="grid-3">
+      <div class="result-box"><div class="r-label">Tickets vendus</div><div class="r-value">${fmtN(totalSold)}</div></div>
+      <div class="result-box"><div class="r-label">Recette théorique</div><div class="r-value" style="font-size:1.1rem">${fmt(theor)}</div></div>
+      <div class="result-box"><div class="r-label">Type le + vendu</div><div class="r-value" style="font-size:1rem">${getBestTicket(sold,cfg)}</div></div>
+    </div>
+    <hr class="divider">
+    <div class="card-title" style="margin:8px 0 12px"><span class="icon">📊</span> Détail par type</div>
+    <div class="table-wrapper"><table>
+      <thead><tr><th>Type</th><th>Remis</th><th>Restants</th><th>Vendus</th><th>Recette</th></tr></thead>
+      <tbody>${cfg.ticketTypes.map(t=>`<tr>
+        <td><span class="badge tt-${t.id}">${t.id} — ${t.label}</span></td>
+        <td style="text-align:right">${dist.tickets?.[t.id]||0}</td>
+        <td style="text-align:right">${remaining[t.id]}</td>
+        <td style="text-align:right;font-weight:600">${sold[t.id]}</td>
+        <td style="text-align:right">${fmt(sold[t.id]*t.price)}</td>
+      </tr>`).join('')}
+      </tbody>
+      <tfoot><tr class="tfoot-row"><td colspan="3">TOTAL</td><td style="text-align:right">${fmtN(totalSold)}</td><td style="text-align:right">${fmt(theor)}</td></tr></tfoot>
+    </table></div>
+  `;
+
+  if(actual > 0){
+    const ok = Math.abs(disc) < 1;
+    document.getElementById('cloture-discrepancy').innerHTML=`
+      <div class="alert ${ok?'alert-success':disc>0?'alert-info':'alert-error'}">
+        ${ok?'✅ Recette conforme — aucun écart détecté.':disc>0?`ℹ️ Excédent de <strong>${fmt(disc)}</strong> — encaissement supérieur à la recette théorique.`:`⚠️ <strong>ANOMALIE DÉTECTÉE</strong> — Manquant de <strong>${fmt(Math.abs(disc))}</strong> (encaissement inférieur à la recette théorique).`}
+      </div>`;
+  }
+}
+
+function getBestTicket(sold,cfg){
+  let max=0,best='—';
+  cfg.ticketTypes.forEach(t=>{if((sold[t.id]||0)>max){max=sold[t.id];best=t.label;}});
+  return best;
+}
+
+function saveCloture(){
+  if(!_clotureDistId){ toast('Erreur : aucune distribution sélectionnée','error'); return; }
+  const dist = DB.dists().find(d=>d.id===_clotureDistId);
+  if(!dist){ toast('Distribution introuvable','error'); return; }
+  const cfg = DB.cfg();
+  const actual = parseFloat(document.getElementById('cloture-actual').value)||0;
+  if(actual<=0){ toast('Veuillez saisir le montant réellement encaissé','error'); return; }
+
+  let theor=0,totalSold=0;
+  const sold={},remaining={};
+  let hasIssue=false;
+  cfg.ticketTypes.forEach(t=>{
+    const remis=dist.tickets?.[t.id]||0;
+    const rest=parseInt(document.getElementById('cl-tk-'+t.id)?.value)||0;
+    if(rest>remis){ toast(`❌ Tickets ${t.id} restants (${rest}) > remis (${remis}) !`,'error'); hasIssue=true; return; }
+    const s=remis-rest;
+    sold[t.id]=s; remaining[t.id]=rest;
+    totalSold+=s; theor+=s*t.price;
+  });
+  if(hasIssue) return;
+
+  const disc=actual-theor;
+  const hasAnomaly=Math.abs(disc)>=1;
+
+  const clotureRecord = {
+    id:uuid(), distributionId:_clotureDistId, date:dist.date,
+    sold, remaining, theoreticalRevenue:theor, actualRevenue:actual,
+    discrepancy:disc, hasAnomaly, totalSold
+  };
+
+  // Update distribution status
+  const dists=DB.dists();
+  const idx=dists.findIndex(d=>d.id===_clotureDistId);
+  if(idx>=0) dists[idx].status='closed';
+  DB.saveDists(dists);
+
+  const closures=DB.closures();
+  closures.push(clotureRecord);
+  DB.saveClosures(closures);
+
+  closeModal('modal-cloture');
+  if(hasAnomaly) toast(`⚠️ Clôture enregistrée avec anomalie : écart de ${fmt(Math.abs(disc))}!`,'warn');
+  else toast('Clôture enregistrée avec succès ✅','success');
+  renderCloture();
+  updateBadge();
+}
+
+function viewCloture(id){
+  const c = DB.closures().find(x=>x.id===id);
+  if(!c) return;
+  const dist = DB.dists().find(d=>d.id===c.distributionId)||{};
+  const cfg = DB.cfg();
+  const emp = empById(dist.ticketerId);
+  document.getElementById('detail-cloture-content').innerHTML=`
+    <div class="grid-2" style="margin-bottom:16px">
+      <div class="result-box"><div class="r-label">Date</div><div class="r-value" style="font-size:1rem">${dateLabel(c.date)}</div></div>
+      <div class="result-box"><div class="r-label">Voyage</div><div class="r-value" style="font-size:1rem">${dist.trip||'—'}</div></div>
+      <div class="result-box"><div class="r-label">Billetaire</div><div class="r-value" style="font-size:1rem">${emp?emp.name:'—'}</div></div>
+      <div class="result-box"><div class="r-label">Véhicule</div><div class="r-value" style="font-size:1rem">${dist.vehicle||'—'}</div></div>
+    </div>
+    <div class="table-wrapper" style="margin-bottom:16px"><table>
+      <thead><tr><th>Type</th><th>Remis</th><th>Restants</th><th>Vendus</th><th>Prix unit.</th><th>Recette</th></tr></thead>
+      <tbody>${cfg.ticketTypes.map(t=>`<tr>
+        <td><span class="badge tt-${t.id}">${t.id} — ${t.label}</span></td>
+        <td style="text-align:right">${dist.tickets?.[t.id]||0}</td>
+        <td style="text-align:right">${c.remaining?.[t.id]||0}</td>
+        <td style="text-align:right;font-weight:700">${c.sold?.[t.id]||0}</td>
+        <td style="text-align:right">${fmt(t.price)}</td>
+        <td style="text-align:right">${fmt((c.sold?.[t.id]||0)*t.price)}</td>
+      </tr>`).join('')}
+      </tbody>
+      <tfoot><tr class="tfoot-row"><td colspan="3">TOTAL</td><td style="text-align:right">${fmtN(c.totalSold||0)}</td><td></td><td style="text-align:right">${fmt(c.theoreticalRevenue)}</td></tr></tfoot>
+    </table></div>
+    <div class="grid-3">
+      <div class="result-box"><div class="r-label">Recette théorique</div><div class="r-value">${fmt(c.theoreticalRevenue)}</div></div>
+      <div class="result-box"><div class="r-label">Recette réelle</div><div class="r-value">${fmt(c.actualRevenue)}</div></div>
+      <div class="result-box"><div class="r-label">Écart</div><div class="r-value" style="color:${c.discrepancy===0?'var(--green)':c.discrepancy>0?'var(--blue)':'var(--red)'}">${c.discrepancy>=0?'+':''}${fmt(c.discrepancy)}</div></div>
+    </div>
+    ${c.hasAnomaly?`<div class="alert alert-error" style="margin-top:12px">⚠️ <strong>Anomalie détectée</strong> — un écart de <strong>${fmt(Math.abs(c.discrepancy))}</strong> a été constaté lors de cette clôture.</div>`:'<div class="alert alert-success" style="margin-top:12px">✅ Aucune anomalie — recette conforme.</div>'}
+  `;
+  openModal('modal-detail-cloture');
+}
+
+function deleteCloture(id){
+  if(!confirm('Supprimer cette clôture ? La distribution redeviendra ouverte.')) return;
+  const c=DB.closures().find(x=>x.id===id);
+  if(c){
+    const dists=DB.dists(); const idx=dists.findIndex(d=>d.id===c.distributionId);
+    if(idx>=0){dists[idx].status='open';DB.saveDists(dists);}
+  }
+  DB.saveClosures(DB.closures().filter(x=>x.id!==id));
+  toast('Clôture supprimée.','warn');
+  renderCloture(); updateBadge();
+}
+
+// ----------------------------------------------------------------
+// DEPENSES
+// ----------------------------------------------------------------
+function renderKpiDepenses(){
+  const expenses = DB.expenses();
+  const d = today();
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const todayExp = expenses.filter(e=>e.date===d).reduce((a,e)=>a+e.amount,0);
+  const monthExp = expenses.filter(e=>e.date.startsWith(ym)).reduce((a,e)=>a+e.amount,0);
+  const totalExp = expenses.reduce((a,e)=>a+e.amount,0);
+  document.getElementById('kpi-depenses').innerHTML=`
+    <div class="kpi-card" style="--accent:var(--red)"><div class="kpi-label">Dépenses du jour</div><div class="kpi-value">${fmtN(todayExp)}</div><div class="kpi-sub">GNF</div><div class="kpi-icon">📅</div></div>
+    <div class="kpi-card" style="--accent:var(--gold)"><div class="kpi-label">Dépenses du mois</div><div class="kpi-value">${fmtN(monthExp)}</div><div class="kpi-sub">GNF</div><div class="kpi-icon">🗓️</div></div>
+    <div class="kpi-card" style="--accent:var(--purple)"><div class="kpi-label">Total général</div><div class="kpi-value">${fmtN(totalExp)}</div><div class="kpi-sub">GNF</div><div class="kpi-icon">📊</div></div>
+    <div class="kpi-card" style="--accent:var(--blue)"><div class="kpi-label">Nb de dépenses</div><div class="kpi-value">${expenses.length}</div><div class="kpi-sub">Enregistrements</div><div class="kpi-icon">🔢</div></div>
+  `;
+}
+
+function renderDepenses(){
+  const filterDate = document.getElementById('filter-dep-date')?.value||'';
+  const filterCat  = document.getElementById('filter-dep-cat')?.value||'';
+  let expenses = DB.expenses();
+  if(filterDate) expenses=expenses.filter(e=>e.date===filterDate);
+  if(filterCat)  expenses=expenses.filter(e=>e.category===filterCat);
+  expenses=[...expenses].sort((a,b)=>b.date.localeCompare(a.date));
+
+  // Populate cat filter
+  const cats=[...new Set(DB.expenses().map(e=>e.category))];
+  const catSel=document.getElementById('filter-dep-cat');
+  if(catSel){
+    const cur=catSel.value;
+    catSel.innerHTML='<option value="">Toutes catégories</option>'+cats.map(c=>`<option value="${c}" ${c===cur?'selected':''}>${c}</option>`).join('');
+  }
+
+  const el=document.getElementById('depenses-list');
+  if(expenses.length===0){
+    el.innerHTML='<div class="empty-state"><span class="icon">💸</span><p>Aucune dépense trouvée.</p></div>';
+    return;
+  }
+  const total=expenses.reduce((a,e)=>a+e.amount,0);
+  el.innerHTML=`<div class="table-wrapper"><table>
+    <thead><tr><th>Date</th><th>Catégorie</th><th>Description</th><th>Responsable</th><th>Montant</th><th>Actions</th></tr></thead>
+    <tbody>
+    ${expenses.map(e=>{
+      const emp=empById(e.responsibleId);
+      return `<tr>
+        <td>${dateLabel(e.date)}</td>
+        <td><span class="badge badge-gold">${e.category}</span></td>
+        <td>${e.description||'—'}</td>
+        <td>${emp?emp.name:'—'}</td>
+        <td style="text-align:right;font-weight:600">${fmt(e.amount)}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteDepense('${e.id}')">🗑️</button></td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+    <tfoot><tr class="tfoot-row"><td colspan="4">TOTAL</td><td style="text-align:right">${fmt(total)}</td><td></td></tr></tfoot>
+  </table></div>`;
+}
+
+function openDepenseModal(){
+  const cfg=DB.cfg();
+  document.getElementById('dep-date').value=today();
+  document.getElementById('dep-amount').value='';
+  document.getElementById('dep-desc').value='';
+  const sel=document.getElementById('dep-responsible');
+  sel.innerHTML=cfg.employees.map(e=>`<option value="${e.id}">${e.name}</option>`).join('');
+  openModal('modal-depense');
+}
+
+function saveDepense(){
+  const date=document.getElementById('dep-date').value;
+  const amount=parseFloat(document.getElementById('dep-amount').value)||0;
+  const category=document.getElementById('dep-category').value;
+  const responsibleId=document.getElementById('dep-responsible').value;
+  const description=document.getElementById('dep-desc').value.trim();
+  if(!date||amount<=0){ toast('Veuillez remplir la date et le montant','error'); return; }
+  const expenses=DB.expenses();
+  expenses.push({id:uuid(),date,amount,category,responsibleId,description});
+  DB.saveExpenses(expenses);
+  closeModal('modal-depense');
+  toast('Dépense enregistrée ✅','success');
+  renderDepenses(); renderKpiDepenses();
+}
+
+function deleteDepense(id){
+  if(!confirm('Supprimer cette dépense ?')) return;
+  DB.saveExpenses(DB.expenses().filter(e=>e.id!==id));
+  toast('Dépense supprimée','warn');
+  renderDepenses(); renderKpiDepenses();
+}
+
+function clearDepenseFilters(){
+  document.getElementById('filter-dep-date').value='';
+  document.getElementById('filter-dep-cat').value='';
+  renderDepenses();
+}
+
+// ----------------------------------------------------------------
+// SALAIRES
+// ----------------------------------------------------------------
+function renderSalaires(){
+  const cfg=DB.cfg();
+  const salaries=DB.salaries();
+  const grid=document.getElementById('employee-cards-grid');
+  const colors=['var(--gold)','var(--blue)','var(--green)','var(--purple)','var(--cyan)','var(--red)'];
+
+  grid.innerHTML=cfg.employees.map((emp,i)=>{
+    const paid=salaries.filter(s=>s.employeeId===emp.id).reduce((a,s)=>a+s.amount,0);
+    const pct=Math.min(100,Math.round((paid/emp.salary)*100));
+    const color=colors[i%colors.length];
+    const initial=emp.name.charAt(0).toUpperCase();
+    return `<div class="employee-card">
+      <div class="emp-avatar" style="background:${color}22;color:${color}">${initial}</div>
+      <div class="emp-name">${emp.name}</div>
+      <div class="emp-role">🏷️ ${emp.role}</div>
+      <div class="emp-salary-bar">
+        <div class="emp-meta"><span>Salaire mensuel</span><span>${fmt(emp.salary)}</span></div>
+        <div class="emp-meta"><span>Total versé</span><span style="color:var(--green)">${fmt(paid)}</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
+        <div class="emp-meta" style="margin-top:4px"><span style="color:var(--text-dim);font-size:0.72rem">${pct}% payé</span></div>
+      </div>
+      <button class="btn btn-primary btn-sm" style="width:100%;margin-top:12px" onclick="openSalaireModal('${emp.id}')">💳 Payer</button>
+    </div>`;
+  }).join('');
+
+  // History
+  const sorted=[...salaries].sort((a,b)=>b.date.localeCompare(a.date));
+  const histEl=document.getElementById('salaires-history');
+  if(sorted.length===0){
+    histEl.innerHTML='<div class="empty-state"><span class="icon">📜</span><p>Aucun paiement de salaire enregistré.</p></div>';
+    return;
+  }
+  const total=sorted.reduce((a,s)=>a+s.amount,0);
+  histEl.innerHTML=`<div class="table-wrapper"><table>
+    <thead><tr><th>Date</th><th>Employé</th><th>Période</th><th>Note</th><th>Montant</th><th>Actions</th></tr></thead>
+    <tbody>${sorted.map(s=>{
+      const emp=empById(s.employeeId);
+      return `<tr>
+        <td>${dateLabel(s.date)}</td>
+        <td><strong>${emp?emp.name:'—'}</strong><br><span style="font-size:0.75rem;color:var(--text-muted)">${emp?emp.role:''}</span></td>
+        <td>${s.period||'—'}</td>
+        <td>${s.note||'—'}</td>
+        <td style="text-align:right;font-weight:700;color:var(--green)">${fmt(s.amount)}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteSalaire('${s.id}')">🗑️</button></td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+    <tfoot><tr class="tfoot-row"><td colspan="4">TOTAL VERSÉ</td><td style="text-align:right">${fmt(total)}</td><td></td></tr></tfoot>
+  </table></div>`;
+}
+
+function openSalaireModal(empId){
+  const cfg=DB.cfg();
+  const sel=document.getElementById('sal-employee');
+  sel.innerHTML=cfg.employees.map(e=>`<option value="${e.id}" ${e.id===empId?'selected':''}>${e.name} — ${e.role}</option>`).join('');
+  const now=new Date();
+  document.getElementById('sal-period').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  document.getElementById('sal-date').value=today();
+  document.getElementById('sal-amount').value='';
+  document.getElementById('sal-note').value='';
+  updateSalaryInfo();
+  openModal('modal-salaire');
+}
+
+function updateSalaryInfo(){
+  const empId=document.getElementById('sal-employee').value;
+  const emp=empById(empId);
+  if(!emp){document.getElementById('sal-info-box').innerHTML='';return;}
+  const paid=DB.salaries().filter(s=>s.employeeId===empId).reduce((a,s)=>a+s.amount,0);
+  const rem=Math.max(0,emp.salary-paid);
+  document.getElementById('sal-info-box').innerHTML=`
+    <div class="alert alert-info">
+      💡 <strong>${emp.name}</strong> — Salaire mensuel : <strong>${fmt(emp.salary)}</strong> · 
+      Déjà versé : <strong>${fmt(paid)}</strong> · 
+      Reste : <strong style="color:${rem>0?'var(--gold)':'var(--green)'}">${fmt(rem)}</strong>
+    </div>`;
+  if(!document.getElementById('sal-amount').value && rem>0){
+    document.getElementById('sal-amount').value=rem;
+  }
+}
+
+function saveSalaire(){
+  const employeeId=document.getElementById('sal-employee').value;
+  const amount=parseFloat(document.getElementById('sal-amount').value)||0;
+  const period=document.getElementById('sal-period').value;
+  const date=document.getElementById('sal-date').value;
+  const note=document.getElementById('sal-note').value.trim();
+  if(!employeeId||amount<=0||!date){ toast('Veuillez remplir tous les champs','error'); return; }
+  const salaries=DB.salaries();
+  salaries.push({id:uuid(),employeeId,amount,period,date,note});
+  DB.saveSalaries(salaries);
+  closeModal('modal-salaire');
+  toast('Paiement de salaire enregistré ✅','success');
+  renderSalaires();
+}
+
+function deleteSalaire(id){
+  if(!confirm('Supprimer ce paiement de salaire ?')) return;
+  DB.saveSalaries(DB.salaries().filter(s=>s.id!==id));
+  toast('Paiement supprimé','warn');
+  renderSalaires();
+}
+
+// ----------------------------------------------------------------
+// CONFIGURATION
+// ----------------------------------------------------------------
+function renderConfig(){
+  const cfg=DB.cfg();
+  // Ticket types
+  const tcEl=document.getElementById('ticket-config-form');
+  tcEl.innerHTML=cfg.ticketTypes.map(t=>`
+    <div class="ticket-row" style="margin-bottom:8px">
+      <div class="ticket-type-badge tt-${t.id}">${t.id}</div>
+      <div class="ticket-info">
+        <input type="text" id="cfg-tk-name-${t.id}" class="form-control" value="${t.label}" placeholder="Nom du ticket" style="margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="number" id="cfg-tk-price-${t.id}" class="form-control" value="${t.price}" placeholder="Prix" min="0">
+          <span style="color:var(--text-muted);font-size:0.8rem;white-space:nowrap">GNF</span>
+        </div>
+      </div>
+    </div>`).join('');
+
+  // Employees
+  renderEmployeeConfigList();
+}
+
+function renderEmployeeConfigList(){
+  const cfg=DB.cfg();
+  const colors=['var(--gold)','var(--blue)','var(--green)','var(--purple)','var(--cyan)'];
+  document.getElementById('employee-config-list').innerHTML=
+    cfg.employees.length===0
+    ?'<div class="empty-state"><span class="icon">👥</span><p>Aucun employé configuré.</p></div>'
+    :cfg.employees.map((e,i)=>`
+      <div class="ticket-row" style="margin-bottom:8px">
+        <div class="emp-avatar" style="background:${colors[i%colors.length]}22;color:${colors[i%colors.length]};width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0">${e.name.charAt(0)}</div>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:0.9rem">${e.name}</div>
+          <div style="font-size:0.75rem;color:var(--text-muted)">${e.role} · ${fmt(e.salary)}/mois</div>
+        </div>
+        <button class="btn btn-secondary btn-sm btn-icon" onclick="editEmployee('${e.id}')" title="Modifier">✏️</button>
+        <button class="btn btn-danger btn-sm btn-icon" onclick="deleteEmployee('${e.id}')" title="Supprimer">🗑️</button>
+      </div>`).join('');
+}
+
+function saveConfig(){
+  const cfg=DB.cfg();
+  cfg.ticketTypes.forEach(t=>{
+    const nameEl=document.getElementById('cfg-tk-name-'+t.id);
+    const priceEl=document.getElementById('cfg-tk-price-'+t.id);
+    if(nameEl) t.label=nameEl.value.trim()||t.label;
+    if(priceEl) t.price=parseFloat(priceEl.value)||t.price;
+  });
+  DB.saveCfg(cfg);
+  toast('Configuration sauvegardée ✅','success');
+}
+
+function openEmployeeModal(empId){
+  const emp=empId?empById(empId):null;
+  document.getElementById('modal-emp-title').textContent=emp?'✏️ Modifier l\'employé':'👤 Ajouter un Employé';
+  document.getElementById('emp-edit-id').value=empId||'';
+  document.getElementById('emp-name').value=emp?emp.name:'';
+  document.getElementById('emp-role').value=emp?emp.role:'';
+  document.getElementById('emp-salary').value=emp?emp.salary:'';
+  openModal('modal-employee');
+}
+
+function editEmployee(id){ openEmployeeModal(id) }
+
+function saveEmployee(){
+  const id=document.getElementById('emp-edit-id').value;
+  const name=document.getElementById('emp-name').value.trim();
+  const role=document.getElementById('emp-role').value.trim();
+  const salary=parseFloat(document.getElementById('emp-salary').value)||0;
+  if(!name||!role||salary<=0){ toast('Veuillez remplir tous les champs','error'); return; }
+  const cfg=DB.cfg();
+  if(id){
+    const idx=cfg.employees.findIndex(e=>e.id===id);
+    if(idx>=0) cfg.employees[idx]={...cfg.employees[idx],name,role,salary};
+  } else {
+    cfg.employees.push({id:'E'+Date.now(),name,role,salary});
+  }
+  DB.saveCfg(cfg);
+  closeModal('modal-employee');
+  toast(id?'Employé modifié ✅':'Employé ajouté ✅','success');
+  renderEmployeeConfigList();
+}
+
+function deleteEmployee(id){
+  if(!confirm('Supprimer cet employé ? Ses paiements de salaire resteront dans l\'historique.')) return;
+  const cfg=DB.cfg();
+  cfg.employees=cfg.employees.filter(e=>e.id!==id);
+  DB.saveCfg(cfg);
+  toast('Employé supprimé','warn');
+  renderEmployeeConfigList();
+}
+
+// ----------------------------------------------------------------
+// RAPPORTS
+// ----------------------------------------------------------------
+function initRapports(){
+  const d=today();
+  const now=new Date();
+  document.getElementById('rj-date').value=d;
+  document.getElementById('rs-date').value=d;
+  document.getElementById('rm-month').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  // Year select
+  const yearSel=document.getElementById('ra-year');
+  const years=[...new Set([...DB.closures(),...DB.expenses(),...DB.salaries()].map(x=>x.date?.substring(0,4)).filter(Boolean))];
+  if(!years.includes(String(now.getFullYear()))) years.push(String(now.getFullYear()));
+  years.sort((a,b)=>b-a);
+  yearSel.innerHTML=years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  renderRapportJour(); renderRapportSemaine(); renderRapportMois(); renderRapportAnnee();
+}
+
+function buildRapportHTML(dates,title){
+  const data=computePeriod(dates);
+  const cfg=DB.cfg();
+  const net=data.totalActual-data.totalExpenses;
+  const netAfterSal=net-data.totalSalaries;
+  return `
+    <div class="kpi-grid">
+      <div class="kpi-card" style="--accent:var(--green)"><div class="kpi-label">Recettes</div><div class="kpi-value">${fmtN(data.totalActual)}</div><div class="kpi-sub">GNF encaissés</div><div class="kpi-icon">💰</div></div>
+      <div class="kpi-card" style="--accent:var(--red)"><div class="kpi-label">Dépenses</div><div class="kpi-value">${fmtN(data.totalExpenses)}</div><div class="kpi-sub">GNF dépensés</div><div class="kpi-icon">💸</div></div>
+      <div class="kpi-card" style="--accent:var(--purple)"><div class="kpi-label">Salaires versés</div><div class="kpi-value">${fmtN(data.totalSalaries)}</div><div class="kpi-sub">GNF</div><div class="kpi-icon">👥</div></div>
+      <div class="kpi-card" style="--accent:var(--blue)"><div class="kpi-label">Bénéfice net</div><div class="kpi-value" style="color:${netAfterSal>=0?'var(--green)':'var(--red)'}">${fmtN(netAfterSal)}</div><div class="kpi-sub">Après charges</div><div class="kpi-icon">📊</div></div>
+      <div class="kpi-card" style="--accent:var(--cyan)"><div class="kpi-label">Tickets vendus</div><div class="kpi-value">${fmtN(data.totalSold)}</div><div class="kpi-sub">Total</div><div class="kpi-icon">🎫</div></div>
+    </div>
+    <div class="card" style="margin-top:4px">
+      <div class="card-title"><span class="icon">🎫</span> Ventes par type de ticket</div>
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Type</th><th>Nom</th><th>Prix unit.</th><th>Vendus</th><th>Recette</th></tr></thead>
+        <tbody>${cfg.ticketTypes.map(t=>`<tr>
+          <td><span class="badge tt-${t.id}">${t.id}</span></td>
+          <td>${t.label}</td>
+          <td style="text-align:right">${fmt(t.price)}</td>
+          <td style="text-align:right;font-weight:600">${fmtN(data.soldByType[t.id]||0)}</td>
+          <td style="text-align:right">${fmt((data.soldByType[t.id]||0)*t.price)}</td>
+        </tr>`).join('')}
+        </tbody>
+        <tfoot><tr class="tfoot-row"><td colspan="3">TOTAL</td><td style="text-align:right">${fmtN(data.totalSold)}</td><td style="text-align:right">${fmt(data.totalActual)}</td></tr></tfoot>
+      </table></div>
+    </div>
+    ${buildExpensesTable(dates)}
+    ${buildSalariesTable(dates)}
+    ${data.anomalies.length>0?data.anomalies.map(a=>`<div class="alert alert-error" style="margin-top:8px">⚠️ Anomalie: écart de <strong>${fmt(Math.abs(a.discrepancy))}</strong> le ${dateLabel(a.date)}</div>`).join(''):''}
+  `;
+}
+
+function buildExpensesTable(dates){
+  const exps=DB.expenses().filter(e=>dates.includes(e.date));
+  if(exps.length===0) return '';
+  const total=exps.reduce((a,e)=>a+e.amount,0);
+  return `<div class="card" style="margin-top:16px">
+    <div class="card-title"><span class="icon">💸</span> Dépenses</div>
+    <div class="table-wrapper"><table>
+      <thead><tr><th>Date</th><th>Catégorie</th><th>Description</th><th>Montant</th></tr></thead>
+      <tbody>${exps.map(e=>`<tr>
+        <td>${shortDate(e.date)}</td>
+        <td><span class="badge badge-gold">${e.category}</span></td>
+        <td>${e.description||'—'}</td>
+        <td style="text-align:right">${fmt(e.amount)}</td>
+      </tr>`).join('')}
+      </tbody>
+      <tfoot><tr class="tfoot-row"><td colspan="3">TOTAL</td><td style="text-align:right">${fmt(total)}</td></tr></tfoot>
+    </table></div>
+  </div>`;
+}
+
+function buildSalariesTable(dates){
+  const sals=DB.salaries().filter(s=>dates.includes(s.date));
+  if(sals.length===0) return '';
+  const total=sals.reduce((a,s)=>a+s.amount,0);
+  return `<div class="card" style="margin-top:16px">
+    <div class="card-title"><span class="icon">👥</span> Salaires versés</div>
+    <div class="table-wrapper"><table>
+      <thead><tr><th>Date</th><th>Employé</th><th>Période</th><th>Montant</th></tr></thead>
+      <tbody>${sals.map(s=>{
+        const emp=empById(s.employeeId);
+        return `<tr>
+          <td>${shortDate(s.date)}</td>
+          <td>${emp?emp.name:'—'}</td>
+          <td>${s.period||'—'}</td>
+          <td style="text-align:right">${fmt(s.amount)}</td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+      <tfoot><tr class="tfoot-row"><td colspan="3">TOTAL</td><td style="text-align:right">${fmt(total)}</td></tr></tfoot>
+    </table></div>
+  </div>`;
+}
+
+function renderRapportJour(){
+  const d=document.getElementById('rj-date').value;
+  if(!d){document.getElementById('rapport-jour-content').innerHTML='';return;}
+  document.getElementById('rapport-jour-content').innerHTML=buildRapportHTML([d],`Rapport du ${dateLabel(d)}`);
+}
+
+function renderRapportSemaine(){
+  const d=document.getElementById('rs-date').value;
+  if(!d){document.getElementById('rapport-semaine-content').innerHTML='';return;}
+  const dates=getWeekDates(d);
+  document.getElementById('rapport-semaine-content').innerHTML=buildRapportHTML(dates,'Rapport hebdomadaire');
+}
+
+function renderRapportMois(){
+  const ym=document.getElementById('rm-month').value;
+  if(!ym){document.getElementById('rapport-mois-content').innerHTML='';return;}
+  const dates=getMonthDates(ym);
+  document.getElementById('rapport-mois-content').innerHTML=buildRapportHTML(dates,`Rapport de ${ym}`);
+}
+
+function renderRapportAnnee(){
+  const y=document.getElementById('ra-year').value;
+  if(!y){document.getElementById('rapport-annee-content').innerHTML='';return;}
+  const dates=getYearDates(y);
+  document.getElementById('rapport-annee-content').innerHTML=buildRapportHTML(dates,`Rapport annuel ${y}`);
+}
+
+// ----------------------------------------------------------------
+// STATISTIQUES
+// ----------------------------------------------------------------
+function renderStats(){
+  const days=parseInt(document.getElementById('stat-period')?.value||30);
+  const dates=getLastNDates(days);
+  const data=computePeriod(dates);
+  const cfg=DB.cfg();
+
+  // Revenue / expenses evolution
+  const labels=dates.map(d=>shortDate(d));
+  const rev=dates.map(d=>data.dailyData[d]?.revenue||0);
+  const exp=dates.map(d=>data.dailyData[d]?.expenses||0);
+  const prof=dates.map(d=>data.dailyData[d]?.profit||0);
+
+  destroyChart('chart-revexp');
+  charts['chart-revexp']=new Chart(document.getElementById('chart-revexp'),{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Recettes',data:rev,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,0.1)',tension:0.4,fill:true,pointRadius:3},
+      {label:'Dépenses',data:exp,borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,0.05)',tension:0.4,fill:true,pointRadius:3}
+    ]},
+    options:chartOpts('GNF')
+  });
+
+  destroyChart('chart-profit');
+  charts['chart-profit']=new Chart(document.getElementById('chart-profit'),{
+    type:'line',
+    data:{labels,datasets:[{
+      label:'Bénéfice',data:prof,
+      borderColor:'#f59e0b',
+      backgroundColor:'rgba(245,158,11,0.1)',
+      tension:0.4,fill:true,pointRadius:3,
+      segment:{borderColor:ctx=>ctx.p1.parsed.y>=0?'#10b981':'#ef4444'}
+    }]},
+    options:chartOpts('GNF')
+  });
+
+  // Tickets by type (bar)
+  const colors=Object.values(getTicketColors());
+  destroyChart('chart-tickets-type');
+  charts['chart-tickets-type']=new Chart(document.getElementById('chart-tickets-type'),{
+    type:'bar',
+    data:{
+      labels:cfg.ticketTypes.map(t=>t.label),
+      datasets:[{label:'Tickets vendus',data:cfg.ticketTypes.map(t=>data.soldByType[t.id]||0),backgroundColor:colors,borderRadius:6}]
+    },
+    options:{...chartOpts(),plugins:{legend:{display:false}}}
+  });
+
+  // Revenue by type (doughnut)
+  destroyChart('chart-rev-dist');
+  charts['chart-rev-dist']=new Chart(document.getElementById('chart-rev-dist'),{
+    type:'doughnut',
+    data:{
+      labels:cfg.ticketTypes.map(t=>t.label),
+      datasets:[{data:cfg.ticketTypes.map(t=>(data.soldByType[t.id]||0)*t.price),backgroundColor:colors,borderWidth:0,hoverOffset:8}]
+    },
+    options:{plugins:{legend:{position:'right',labels:{color:'#8b9cc8',font:{size:11}}}}}
+  });
+
+  // Monthly comparison
+  const months=getLast12Months();
+  const mRevs=months.map(ym=>{
+    const mDates=getMonthDates(ym);
+    return computePeriod(mDates).totalActual;
+  });
+  const mExps=months.map(ym=>{
+    const mDates=getMonthDates(ym);
+    return computePeriod(mDates).totalExpenses;
+  });
+  destroyChart('chart-monthly-compare');
+  charts['chart-monthly-compare']=new Chart(document.getElementById('chart-monthly-compare'),{
+    type:'bar',
+    data:{
+      labels:months.map(ym=>{const[y,m]=ym.split('-');return `${['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Aoû','Sep','Oct','Nov','Déc'][+m-1]} ${y}`}),
+      datasets:[
+        {label:'Recettes',data:mRevs,backgroundColor:'rgba(16,185,129,0.7)',borderRadius:4},
+        {label:'Dépenses',data:mExps,backgroundColor:'rgba(239,68,68,0.7)',borderRadius:4}
+      ]
+    },
+    options:chartOpts('GNF')
+  });
+}
+
+function destroyChart(id){
+  if(charts[id]){charts[id].destroy();delete charts[id];}
+}
+
+function chartOpts(unit=''){
+  return {
+    responsive:true,
+    maintainAspectRatio:false,
+    plugins:{
+      legend:{labels:{color:'#8b9cc8',font:{size:12}}},
+      tooltip:{callbacks:{label:ctx=>` ${fmtN(ctx.parsed.y||ctx.parsed)} ${unit}`}}
+    },
+    scales:{
+      x:{ticks:{color:'#4a5578',maxTicksLimit:12,maxRotation:45},grid:{color:'rgba(255,255,255,0.04)'}},
+      y:{ticks:{color:'#4a5578',callback:v=>fmtN(v)},grid:{color:'rgba(255,255,255,0.06)'}}
+    }
+  };
+}
+
+// ----------------------------------------------------------------
+// SAUVEGARDE
+// ----------------------------------------------------------------
+function renderSauvegarde(){
+  const stats=[
+    {label:'Distributions',icon:'🎫',count:DB.dists().length},
+    {label:'Clôtures',icon:'✅',count:DB.closures().length},
+    {label:'Dépenses',icon:'💸',count:DB.expenses().length},
+    {label:'Paiements salaires',icon:'👥',count:DB.salaries().length},
+    {label:'Employés',icon:'👤',count:DB.cfg().employees.length}
+  ];
+  document.getElementById('backup-stats').innerHTML=`
+    <div class="kpi-grid">${stats.map(s=>`
+      <div class="kpi-card" style="--accent:var(--blue)">
+        <div class="kpi-label">${s.label}</div>
+        <div class="kpi-value">${s.count}</div>
+        <div class="kpi-icon">${s.icon}</div>
+      </div>`).join('')}
+    </div>`;
+}
+
+function exportData(){
+  const data={
+    exportDate:new Date().toISOString(),
+    version:'1.0',
+    config:DB.cfg(),
+    distributions:DB.dists(),
+    closures:DB.closures(),
+    expenses:DB.expenses(),
+    salaries:DB.salaries()
+  };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`transportgest_backup_${today()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Sauvegarde téléchargée ✅','success');
+}
+
+function importData(){
+  const file=document.getElementById('import-file').files[0];
+  if(!file){ toast('Veuillez sélectionner un fichier JSON','error'); return; }
+  if(!confirm('⚠️ ATTENTION : Ceci remplacera TOUTES les données actuelles. Continuer ?')) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(data.config) DB.saveCfg(data.config);
+      if(data.distributions) DB.saveDists(data.distributions);
+      if(data.closures) DB.saveClosures(data.closures);
+      if(data.expenses) DB.saveExpenses(data.expenses);
+      if(data.salaries) DB.saveSalaries(data.salaries);
+      toast('Données restaurées avec succès ✅','success');
+      renderSauvegarde();
+    }catch(err){ toast('Fichier invalide — impossible d\'importer','error'); }
+  };
+  reader.readAsText(file);
+}
+
+function confirmReset(){
+  if(!confirm('⛔ RÉINITIALISATION TOTALE : Toutes les données seront supprimées définitivement. Cette action est IRRÉVERSIBLE. Continuer ?')) return;
+  // Clear local storage
+  Object.values(KEYS).forEach(k=>localStorage.removeItem(k));
+  // Clear Firestore if connected
+  if(_firestore){
+    const { doc, setDoc } = window._firebaseModules||{};
+    if(setDoc){
+      const empty = JSON.stringify([]);
+      const ts = Date.now();
+      setDoc(doc(_firestore,FB_COLS.dist,'list'),    {data:empty,updatedAt:ts});
+      setDoc(doc(_firestore,FB_COLS.cloture,'list'), {data:empty,updatedAt:ts});
+      setDoc(doc(_firestore,FB_COLS.depenses,'list'),{data:empty,updatedAt:ts});
+      setDoc(doc(_firestore,FB_COLS.salaires,'list'),{data:empty,updatedAt:ts});
+      setDoc(doc(_firestore,FB_COLS.config,'main'),  {data:JSON.stringify(DEFAULT_CONFIG),updatedAt:ts});
+    }
+  }
+  toast('Application réinitialisée','warn');
+  renderSauvegarde();
+  renderSection(currentSection);
+}
+
+// ----------------------------------------------------------------
+// DATE HELPERS
+// ----------------------------------------------------------------
+function getMonthDates(ym){
+  const[y,m]=ym.split('-').map(Number);
+  const days=new Date(y,m,0).getDate();
+  const dates=[];
+  for(let d=1;d<=days;d++){
+    dates.push(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+  }
+  return dates;
+}
+
+function getYearDates(y){
+  const dates=[];
+  for(let m=1;m<=12;m++){
+    const days=new Date(y,m,0).getDate();
+    for(let d=1;d<=days;d++){
+      dates.push(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+    }
+  }
+  return dates;
+}
+
+function getLastNDates(n){
+  const dates=[];
+  for(let i=n-1;i>=0;i--){
+    const d=new Date(); d.setDate(d.getDate()-i);
+    dates.push(d.toISOString().split('T')[0]);
+  }
+  return dates;
+}
+
+function getAllDates(){
+  const allItems=[...DB.closures(),...DB.expenses(),...DB.salaries()];
+  const dates=[...new Set(allItems.map(x=>x.date).filter(Boolean))].sort();
+  return dates.length===0?[today()]:dates;
+}
+
+function getLast12Months(){
+  const months=[];
+  const now=new Date();
+  for(let i=11;i>=0;i--){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+  }
+  return months;
+}
+
+// ----------------------------------------------------------------
+// INITIALIZATION
+// ----------------------------------------------------------------
+async function init(){
+  // Show loading overlay
+  document.getElementById('app-loading').classList.remove('hidden');
+
+  // Ensure local config exists as fallback
+  if(!DB._get(KEYS.config)) DB._set(KEYS.config, DEFAULT_CONFIG);
+
+  // Try to connect to Firebase if config is saved
+  const savedFbCfg = localStorage.getItem('tg_firebase_config');
+  const skipped = localStorage.getItem('tg_cloud_skipped');
+  if(savedFbCfg){
+    try{
+      const cfg = JSON.parse(savedFbCfg);
+      await initFirebase(cfg);
+    }catch(e){ console.warn('Auto-connect Firebase failed:', e); setSyncStatus('error'); }
+  } else {
+    setSyncStatus('local');
+  }
+
+  // Hide loading overlay
+  document.getElementById('app-loading').classList.add('hidden');
+
+  // Set today's date display
+  updateDateDisplay();
+  // Initial render
+  refreshDashboard();
+  updateBadge();
+  // Override modal open buttons to wire up proper functions
+  document.querySelector('[onclick="openModal(\'modal-distribution\')"]')?.setAttribute('onclick','openDistributionModal()');
+  document.querySelector('[onclick="openModal(\'modal-depense\')"]')?.setAttribute('onclick','openDepenseModal()');
+  document.querySelector('[onclick="openModal(\'modal-salaire\')"]')?.setAttribute('onclick','openSalaireModal()');
+  document.querySelector('[onclick="openModal(\'modal-employee\')"]')?.setAttribute('onclick','openEmployeeModal()');
+
+  // Show cloud setup on first visit if not skipped and not connected
+  if(!savedFbCfg && !skipped){
+    setTimeout(()=>openCloudSetup(), 800);
+  }
+}
+
+// Wire up button overrides before DOMContentLoaded (already in DOM)
+window.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
